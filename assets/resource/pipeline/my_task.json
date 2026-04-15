@@ -1,12 +1,83 @@
 {
-    "MyTask1": {},
-    "MyTask2": {},
-    "MyTask3": {},
-    "MyTask4": {
-        "recognition": "Custom",
-        "custom_recognition": "my_reco_222",
-        "action": "Custom",
-        "custom_action": "my_action_111"
+    "$__mpe_config_新建Pipeline9": {
+        "$__mpe_code": {
+            "prefix": "",
+            "lastSyncTime": 1776279590971,
+            "isModifiedExternally": false,
+            "filePath": "C:\\Users\\Admin\\PycharmProjects\\MAautodori\\assets\\resource\\pipeline\\my_task.json",
+            "savedViewport": {
+                "x": 361,
+                "y": 331,
+                "zoom": 1.15
+            },
+            "filename": "新建Pipeline9",
+            "version": "v1.4.1"
+        }
     },
-    "OcrTask": {}
+    "MyTask1": {
+        "$__mpe_code": {
+            "position": {
+                "x": 12,
+                "y": 12
+            }
+        }
+    },
+    "MyTask2": {
+        "$__mpe_code": {
+            "position": {
+                "x": 252,
+                "y": 12
+            }
+        }
+    },
+    "MyTask3": {
+        "$__mpe_code": {
+            "position": {
+                "x": 12,
+                "y": 139
+            }
+        }
+    },
+    "MyTask4": {
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "my_reco_222"
+            }
+        },
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "my_action_111"
+            }
+        },
+        "$__mpe_code": {
+            "position": {
+                "x": 252,
+                "y": 266
+            }
+        }
+    },
+    "OcrTask": {
+        "$__mpe_code": {
+            "position": {
+                "x": 252,
+                "y": 139
+            }
+        }
+    },
+    "TestEntry": {
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "TestAction"
+            }
+        },
+        "$__mpe_code": {
+            "position": {
+                "x": 12,
+                "y": 266
+            }
+        }
+    }
 }
