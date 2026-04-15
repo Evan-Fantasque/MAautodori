@@ -1,0 +1,11 @@
+{
+    "main": {
+        "next": [
+            "select_song",
+            "select_live_mode",
+            "live_home_button",
+            "[JumpBack]to_tome",
+            "[JumpBack]start_app"
+        ]
+    }
+}

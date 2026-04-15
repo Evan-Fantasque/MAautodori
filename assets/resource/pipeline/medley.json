@@ -1,0 +1,338 @@
+{
+    "$__mpe_config_新建Pipeline4": {
+        "$__mpe_code": {
+            "prefix": "",
+            "lastSyncTime": 1776189357002,
+            "isModifiedExternally": false,
+            "filePath": "C:\\Users\\Admin\\PycharmProjects\\autodoriUI\\assets\\resource\\pipeline\\medley.json",
+            "savedViewport": {
+                "x": 917,
+                "y": 293,
+                "zoom": 0.75
+            },
+            "filename": "新建Pipeline4",
+            "version": "v1.4.1"
+        }
+    },
+    "$__mpe_external_close_button_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1638,
+                "y": 348
+            }
+        }
+    },
+    "$__mpe_external_confirm_button_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1637,
+                "y": 267
+            }
+        }
+    },
+    "$__mpe_external_live_home_button_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1570,
+                "y": 707
+            }
+        }
+    },
+    "$__mpe_external_liveagain_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1576,
+                "y": 797
+            }
+        }
+    },
+    "$__mpe_external_next_button_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2388,
+                "y": 581
+            }
+        }
+    },
+    "$__mpe_external_ok_button_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 850
+            }
+        }
+    },
+    "$__mpe_external_read_after_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 710
+            }
+        }
+    },
+    "$__mpe_external_reader_menu_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 431
+            }
+        }
+    },
+    "$__mpe_external_stop_新建Pipeline4": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2395,
+                "y": 278
+            }
+        }
+    },
+    "MedleyLiveAgain": {
+        "recognition": {
+            "type": "TemplateMatch",
+            "param": {
+                "template": "live/button/liveagain.png"
+            }
+        },
+        "pre_wait_freezes": {
+            "time": 5000,
+            "threshold": 0.65
+        },
+        "action": {
+            "type": "Click",
+            "param": {}
+        },
+        "post_delay": 2000,
+        "next": [
+            "[JumpBack]confirm_button",
+            "[JumpBack]close_button",
+            "MedleyEntry"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 1134,
+                "y": 297
+            }
+        }
+    },
+    "MedleyPlaySong": {
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "Play"
+            }
+        },
+        "post_delay": 5000,
+        "timeout": 500000,
+        "next": [
+            "MedleyAfterLive"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 633,
+                "y": 309
+            }
+        }
+    },
+    "MedleyAfterLive": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "expected": [
+                    "下一步"
+                ]
+            }
+        },
+        "pre_wait_freezes": {
+            "time": 3000,
+            "threshold": 0.65
+        },
+        "action": {
+            "type": "Click",
+            "param": {}
+        },
+        "timeout": 15000,
+        "next": [
+            "MedleyLiveAgain",
+            "[JumpBack]confirm_button",
+            "[JumpBack]close_button"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 882,
+                "y": 306
+            }
+        }
+    },
+    "MedleySongRecognition": {
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "SongRecognition"
+            }
+        },
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "SaveSong"
+            }
+        },
+        "timeout": 15000,
+        "next": [
+            "MedleyStartLive"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 110,
+                "y": 314
+            }
+        }
+    },
+    "MedleyStartLive": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    1060,
+                    625,
+                    134,
+                    40
+                ],
+                "expected": [
+                    "第[123]曲开始"
+                ]
+            }
+        },
+        "pre_wait_freezes": {
+            "time": 3000,
+            "threshold": 0.65
+        },
+        "action": {
+            "type": "Click",
+            "param": {}
+        },
+        "next": [
+            "MedleyPlaySong"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 377,
+                "y": 317
+            }
+        }
+    },
+    "MedleySongStartPage": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "expected": [
+                    "曲开始"
+                ]
+            }
+        },
+        "next": [
+            "MedleySongRecognition"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": -141,
+                "y": 350
+            }
+        }
+    },
+    "MedleyEntry": {
+        "next": [
+            "MedleyFrontPage",
+            "MedleySongSelectPage",
+            "MedleySongStartPage"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": -452,
+                "y": -15
+            }
+        }
+    },
+    "MedleyFrontPage": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "expected": [
+                    "巡回演出首页"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target": [
+                    708,
+                    281,
+                    262,
+                    328
+                ]
+            }
+        },
+        "next": [
+            "MedleySongSelectPage"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": -136,
+                "y": -36
+            }
+        }
+    },
+    "MedleySongSelectPage": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "expected": [
+                    "歌曲选择"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {
+                "target": [
+                    802,
+                    630,
+                    24,
+                    19
+                ]
+            }
+        },
+        "next": [
+            "MedleyNextBotton"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": -139,
+                "y": 155
+            }
+        }
+    },
+    "MedleyNextBotton": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "expected": [
+                    "下一步"
+                ]
+            }
+        },
+        "action": {
+            "type": "Click",
+            "param": {}
+        },
+        "next": [
+            "MedleySongStartPage"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 111,
+                "y": 167
+            }
+        }
+    }
+}

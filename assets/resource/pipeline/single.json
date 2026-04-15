@@ -1,0 +1,52 @@
+{
+  "ui_simplified_entry": {
+    "recognition": "Custom",
+    "custom_recognition": "SongRecognition",
+    "action": "Custom",
+    "custom_action": "SaveSong",
+    "next": [
+      "startlivesingle",
+      "[JumpBack]liveagain",
+      "[JumpBack]live_home_button",
+      "[JumpBack]next_button",
+      "[JumpBack]close_button",
+      "[JumpBack]ok_button",
+      "[JumpBack]confirm_button",
+      "[JumpBack]reader_menu",
+      "[JumpBack]read_after"
+    ],
+    "timeout": 15000,
+    "on_error": [
+      "stop"
+    ]
+  },
+  "startlivesingle": {
+    "action": "Click",
+    "next": [
+      "playsongsingle",
+      "[JumpBack]liveagain",
+      "[JumpBack]live_home_button",
+      "[JumpBack]next_button",
+      "[JumpBack]close_button",
+      "[JumpBack]ok_button",
+      "[JumpBack]confirm_button",
+      "[JumpBack]reader_menu",
+      "[JumpBack]read_after"
+    ],
+    "on_error": [
+      "stop"
+    ],
+    "recognition": "TemplateMatch",
+    "template": "live/button/live_medley.png",
+    "threshold": 0.5
+  },
+  "playsongsingle": {
+    "action": "Custom",
+    "custom_action": "Play",
+    "next": [
+      "ui_simplified_entry"
+    ],
+    "timeout": 500000,
+    "post_delay": 10000
+  }
+}
