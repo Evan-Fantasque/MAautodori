@@ -1,0 +1,164 @@
+{
+    "$__mpe_config_新建Pipeline5": {
+        "$__mpe_code": {
+            "prefix": "",
+            "lastSyncTime": 1776620953476,
+            "isModifiedExternally": false,
+            "filePath": "C:\\Users\\Admin\\PycharmProjects\\MAautodori\\assets\\resource\\pipeline\\test1.json",
+            "savedViewport": {
+                "x": 205,
+                "y": 381,
+                "zoom": 0.97
+            },
+            "filename": "新建Pipeline5",
+            "version": "v1.4.1"
+        }
+    },
+    "$__mpe_external_live_home_button_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1861,
+                "y": 801
+            }
+        }
+    },
+    "$__mpe_external_liveagain_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 1881,
+                "y": 887
+            }
+        }
+    },
+    "$__mpe_external_next_button_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2388,
+                "y": 581
+            }
+        }
+    },
+    "$__mpe_external_ok_button_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 850
+            }
+        }
+    },
+    "$__mpe_external_read_after_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 710
+            }
+        }
+    },
+    "$__mpe_external_reader_menu_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2402,
+                "y": 431
+            }
+        }
+    },
+    "$__mpe_external_stop_新建Pipeline5": {
+        "$__mpe_code": {
+            "position": {
+                "x": 2395,
+                "y": 278
+            }
+        }
+    },
+    "TestEntry1": {
+        "next": [
+            "TestSongRecognition"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": -180,
+                "y": -41
+            }
+        }
+    },
+    "TestPlaySong": {
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "Play"
+            }
+        },
+        "post_delay": 5000,
+        "timeout": 500000,
+        "$__mpe_code": {
+            "position": {
+                "x": 620,
+                "y": -82
+            }
+        }
+    },
+    "TestSongRecognition": {
+        "recognition": {
+            "type": "Custom",
+            "param": {
+                "custom_recognition": "SongRecognition",
+                "custom_recognition_param": {},
+                "roi": [
+                    221,
+                    541,
+                    574,
+                    36
+                ]
+            }
+        },
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "SaveSong"
+            }
+        },
+        "timeout": 15000,
+        "next": [
+            "TestStartLive"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 91,
+                "y": -97
+            }
+        }
+    },
+    "TestStartLive": {
+        "recognition": {
+            "type": "OCR",
+            "param": {
+                "roi": [
+                    1076,
+                    624,
+                    113,
+                    37
+                ],
+                "expected": [
+                    "演出开始"
+                ]
+            }
+        },
+        "pre_wait_freezes": {
+            "time": 3000,
+            "threshold": 0.65
+        },
+        "action": {
+            "type": "Click",
+            "param": {}
+        },
+        "next": [
+            "TestPlaySong"
+        ],
+        "$__mpe_code": {
+            "position": {
+                "x": 359,
+                "y": -85
+            }
+        }
+    }
+}

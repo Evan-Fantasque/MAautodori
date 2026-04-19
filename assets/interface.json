@@ -39,9 +39,9 @@
     //     ]
     // },
     "agent": {
-        "child_exec": "python",
+        "child_exec": "C:\\Users\\Admin\\PycharmProjects\\MAautodori\\.venv\\Scripts\\python.exe",
         "child_args": [
-            "./agent/testaction.py"
+            "../agent/main.py"
         ]
     },
     "task": [
@@ -63,6 +63,10 @@
         {
             "name": "测试任务",
             "entry": "TestEntry"
+        },
+                {
+            "name": "测试任务1",
+            "entry": "TestEntry1"
         }
     ],
     "option": {

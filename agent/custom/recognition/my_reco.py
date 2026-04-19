@@ -1,9 +1,6 @@
-from maa.agent.agent_server import AgentServer
 from maa.custom_recognition import CustomRecognition
 from maa.context import Context
 
-
-@AgentServer.custom_recognition("my_reco_222")
 class MyRecongition(CustomRecognition):
 
     def analyze(
@@ -33,5 +30,5 @@ class MyRecongition(CustomRecognition):
         context.override_next(argv.node_name, ["TaskA", "TaskB"])
 
         return CustomRecognition.AnalyzeResult(
-            box=(0, 0, 100, 100), detail="Hello World!"
+            box=(0, 0, 100, 100), detail={"message": "Hello World!"}
         )
