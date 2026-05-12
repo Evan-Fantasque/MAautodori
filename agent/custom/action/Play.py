@@ -31,7 +31,13 @@ class Play(CustomAction):
         try:
             monitor.start()
             play_song(global_state, stop_event, playback_started_event)
-            stop_event.set()
+
+            stop_event.set()  # 通知 monitor 线程退出
+
+            if global_state.playback_interrupted:
+                logger.warning("检测到 Live Failed 信号，演奏未正常完成")
+                return CustomAction.RunResult(success=False)
+
             return CustomAction.RunResult(success=True)
         except Exception as e:
             stop_event.set()

@@ -4,6 +4,12 @@
     "custom_recognition": "SongRecognition",
     "action": "Custom",
     "custom_action": "SaveSong",
+    "roi": [
+      220,
+      545,
+      570,
+      30
+    ],
     "next": [
       "startlivesingle",
       "[JumpBack]liveagain",
@@ -44,7 +50,7 @@
     "action": "Custom",
     "custom_action": "Play",
     "next": [
-      "ui_simplified_entry"
+      "stop"
     ],
     "timeout": 500000,
     "post_delay": 10000

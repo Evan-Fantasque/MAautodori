@@ -14,30 +14,20 @@ class SongRecognition(CustomRecognition):
     ) -> Union[CustomRecognition.AnalyzeResult, Optional[RectType]]:
         logger = logging.getLogger("SongRecognition")
         
-        # 解析来自管线的参数，代替原有的全局变量
+        # ROI 优先级：管线 argv.roi > global_state 后备
         if argv.roi:
             # 必须转换为 list 以保证 json 序列化成功
             roi = [argv.roi.x, argv.roi.y, argv.roi.w, argv.roi.h]
+        elif global_state.roi:
+            roi = global_state.roi
         else:
-            roi = None
+            logger.error("未配置 ROI，请在 pipeline JSON 中为 SongRecognition 节点添加 roi 字段")
+            return self.AnalyzeResult(None, "")
 
         live_mode = global_state.live_mode
         is_full_song = global_state.is_full_song
         is_high_difficulty = global_state.is_high_difficulty
         difficulty = global_state.difficulty
-        
-        # 通过字典参数配置 roi，避免硬编码
-        if roi is None:
-            roi = global_state.roi
-        elif roi is None:
-            if live_mode == "medley_single":
-                roi = [110, 545, 370, 30]
-            elif live_mode == "free_single":
-                roi = [220, 545, 570, 30]
-            elif live_mode == "free_auto":
-                roi = [200, 330, 370, 30]
-            else:
-                roi = [200, 330, 370, 30]
 
         models_to_try = ["ppocr_v5/zh_cn-server", ""]
 

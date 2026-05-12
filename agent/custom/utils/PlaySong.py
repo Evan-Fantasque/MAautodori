@@ -73,6 +73,7 @@ def monitor_failure_thread(state: StateCore.MAautodoriState, stop_event, playbac
 
             if max_val >= CONFIDENCE_THRESHOLD_FAILURE:
                 logging.error(f"Detected 'Live Failed' screen (match: {max_val:.2f})! Sending stop signal!")
+                state.playback_interrupted = True
                 stop_event.set()
                 break
 

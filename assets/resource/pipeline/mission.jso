@@ -1,0 +1,294 @@
+{
+    "MissionEntry": {
+        "next": [
+            "find_mission_icon"
+        ]
+    },
+    "find_mission_icon": {
+        "recognition": "TemplateMatch",
+        "template": "home/mission_icon.png",
+        "roi": [
+            800,
+            500,
+            200,
+            200
+        ],
+        "action": "Click",
+        "next": [
+            "wait_mission_overview"
+        ],
+        "post_delay": 2000,
+        "timeout": 10000
+    },
+    "wait_mission_overview": {
+        "recognition": "OCR",
+        "expected": [
+            "一览"
+        ],
+        "next": [
+            "click_event_mission"
+        ],
+        "timeout": 15000,
+        "on_error": [
+            "find_mission_icon"
+        ]
+    },
+    "click_event_mission": {
+        "recognition": "OCR",
+        "expected": [
+            "活动任务"
+        ],
+        "roi": [
+            0,
+            100,
+            250,
+            600
+        ],
+        "action": "Click",
+        "next": [
+            "find_song_mission"
+        ],
+        "post_delay": 1500
+    },
+    "find_song_mission": {
+        "recognition": "OCR",
+        "expected": [
+            "歌曲演出吧"
+        ],
+        "roi": [
+            250,
+            150,
+            1000,
+            500
+        ],
+        "next": [
+            "click_mission_detail"
+        ],
+        "timeout": 5000,
+        "on_error": [
+            "scroll_mission_list"
+        ]
+    },
+    "scroll_mission_list": {
+        "action": "Swipe",
+        "begin": [
+            750,
+            500
+        ],
+        "end": [
+            750,
+            200
+        ],
+        "duration": 300,
+        "next": [
+            "find_song_mission"
+        ],
+        "post_delay": 1000
+    },
+    "click_mission_detail": {
+        "recognition": "OCR",
+        "expected": [
+            "详细"
+        ],
+        "roi": [
+            900,
+            150,
+            350,
+            500
+        ],
+        "action": "Click",
+        "next": [
+            "click_goto_performance"
+        ],
+        "post_delay": 2000
+    },
+    "click_goto_performance": {
+        "recognition": "OCR",
+        "expected": [
+            "前往演出"
+        ],
+        "action": "Click",
+        "next": [
+            "wait_song_select"
+        ],
+        "post_delay": 3000
+    },
+    "wait_song_select": {
+        "recognition": "OCR",
+        "expected": [
+            "选择乐曲"
+        ],
+        "next": [
+            "check_song_confirm"
+        ],
+        "timeout": 15000
+    },
+    "check_song_confirm": {
+        "recognition": "OCR",
+        "expected": [
+            "决定"
+        ],
+        "roi": [
+            1000,
+            600,
+            250,
+            100
+        ],
+        "action": "Click",
+        "next": [
+            "wait_live_start_mission"
+        ],
+        "timeout": 5000,
+        "on_error": [
+            "handle_song_locked"
+        ]
+    },
+    "handle_song_locked": {
+        "recognition": "OCR",
+        "expected": [
+            "解锁条件"
+        ],
+        "roi": [
+            400,
+            350,
+            500,
+            150
+        ],
+        "next": [
+            "go_back_mission"
+        ],
+        "timeout": 3000
+    },
+    "wait_live_start_mission": {
+        "recognition": "OCR",
+        "expected": [
+            "选择乐队",
+            "最终确认"
+        ],
+        "timeout": 5000,
+        "next": [
+            "disable_liveplay_mission",
+            "switch_liveplay_mode"
+        ]
+    },
+    "disable_liveplay_mission": {
+        "recognition": "TemplateMatch",
+        "template": [
+            "live/button/liveplay_3d.png",
+            "live/button/liveplay_mv.png"
+        ],
+        "inverse": true,
+        "next": [
+            "startlive_mission"
+        ],
+        "roi": [
+            58,
+            580,
+            363,
+            140
+        ]
+    },
+    "startlive_mission": {
+        "action": "Click",
+        "recognition": "TemplateMatch",
+        "pre_wait_freezes": {
+            "threshold": 0.65,
+            "time": 3000
+        },
+        "template": "live/button/startlive.png",
+        "post_delay": 3000,
+        "next": [
+            "playsong_mission",
+            "[JumpBack]startlive_mission",
+            "[JumpBack]confirm_button",
+            "[JumpBack]login_expired",
+            "[JumpBack]connect_failed"
+        ]
+    },
+    "playsong_mission": {
+        "action": "Custom",
+        "custom_action": "Play",
+        "next": [
+            "go_back_mission"
+        ],
+        "timeout": 500000,
+        "post_delay": 5000,
+        "interrupt": [
+            "live_failed",
+            "next_button",
+            "close_button",
+            "ok_button",
+            "confirm_button"
+        ]
+    },
+    "go_back_mission": {
+        "next": [
+            "MissionEntry"
+        ]
+    },
+    "switch_liveplay_mode": {
+        "action": "Click",
+        "target": [
+            125,
+            631,
+            33,
+            35
+        ]
+    },
+    "close_button": {
+        "recognition": "TemplateMatch",
+        "template": "common/button/close/white.png",
+        "action": "Click"
+    },
+    "confirm_button": {
+        "recognition": "TemplateMatch",
+        "template": [
+            "common/button/confirm/pink.png",
+            "common/button/confirm/white.png"
+        ],
+        "action": "Click"
+    },
+    "next_button": {
+        "recognition": "OCR",
+        "expected": "下一步",
+        "action": "Click",
+        "timeout": 6000
+    },
+    "ok_button": {
+        "recognition": "TemplateMatch",
+        "template": [
+            "common/button/ok/white.png"
+        ],
+        "action": "Click"
+    },
+    "live_failed": {
+        "recognition": "OCR",
+        "expected": "演出失败",
+        "roi": [
+            256,
+            227,
+            155,
+            38
+        ],
+        "next": [
+            "go_back_mission"
+        ]
+    },
+    "login_expired": {
+        "recognition": "OCR",
+        "expected": "登录已失效",
+        "action": "StopTask"
+    },
+    "connect_failed": {
+        "recognition": "OCR",
+        "expected": "连接失败",
+        "next": [
+            "retry_button"
+        ]
+    },
+    "retry_button": {
+        "recognition": "TemplateMatch",
+        "template": "common/button/retry/pink.png",
+        "action": "Click"
+    }
+}

@@ -1,7 +1,6 @@
 import logging
 import re
 import subprocess
-import json
 from maa.custom_action import CustomAction
 from maa.context import Context
 from ..utils.StateCore import global_state, init_player_and_mnt

@@ -38,12 +38,13 @@ class MAautodoriState:
         self.current_mode: Optional[str] = None
 
         # --- 任务配置 ---
-        self.live_mode: str = "freelive"
+        self.live_mode: str = "free_auto"
         self.difficulty: str = "expert"
         self.is_full_song: bool = False
         self.is_high_difficulty: bool = False
         self.max_attempt_count: int = 1
         self.max_continuous_not_fc_count: int = 1
+        self.max_continuous_failed_times: int = 10
         self.human_delay_enabled: bool = False
         self.default_move_slice_size: int = 10
         self.cmd_slice_size: int = 100
@@ -54,10 +55,13 @@ class MAautodoriState:
         self.play_failed_times: int = 0
         self.not_fc_count_dict: dict[str, int] = {}
         self.song_attempt_count_dict: dict[str, int] = {}
+        self.last_played_song_id: Optional[str] = None
+        self.min_liveboost: int = 1
 
         # --- 线程控制 ---
         self.stop_event = threading.Event()
         self.playback_started_event = threading.Event()
+        self.playback_interrupted: bool = False
 
         # --- 触控偏移回调数据 ---
         self.callback_data_lock = threading.Lock()
@@ -93,6 +97,7 @@ class MAautodoriState:
         """在新一轮打歌任务开始前重置必要的临时状态"""
         self.stop_event.clear()
         self.playback_started_event.clear()
+        self.playback_interrupted = False
         with self.callback_data_lock:
             self.callback_data = self._generate_default_callback_data()
 

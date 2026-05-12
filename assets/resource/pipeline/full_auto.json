@@ -23,6 +23,12 @@
     "custom_recognition": "SongRecognition",
     "action": "Custom",
     "custom_action": "SaveSong",
+    "roi": [
+      200,
+      330,
+      370,
+      30
+    ],
     "next": [
       "click_confirm_on_song_select"
     ],
@@ -68,7 +74,9 @@
       "live/button/liveplay_mv.png"
     ],
     "inverse": true,
-    "next": ["startlive"],
+    "next": [
+      "startlive"
+    ],
     "roi": [
       58,
       580,
@@ -124,7 +132,7 @@
       "[JumpBack]connect_failed"
     ]
   },
-    "switch_liveplay_mode": {
+  "switch_liveplay_mode": {
     "action": "Click",
     "target": [
       125,
@@ -203,7 +211,9 @@
       "live/activity_scored.png"
     ],
     "pre_wait_freezes": 2000,
-    "next": ["get_result"]
+    "next": [
+      "get_result"
+    ]
   },
   "get_result": {
     "recognition": "Custom",
@@ -251,7 +261,9 @@
   "close_app": {
     "action": "StopApp",
     "package": "com.bilibili.star.bili",
-    "next": ["stop"]
+    "next": [
+      "stop"
+    ]
   },
   "close_button": {
     "recognition": "TemplateMatch",
@@ -270,13 +282,17 @@
     "recognition": "TemplateMatch",
     "template": "common/reader/menu.png",
     "action": "Click",
-    "next": ["reader_skip"]
+    "next": [
+      "reader_skip"
+    ]
   },
   "reader_skip": {
     "recognition": "TemplateMatch",
     "template": "common/reader/skip.png",
     "action": "Click",
-    "next": ["skip_button"],
+    "next": [
+      "skip_button"
+    ],
     "post_delay": 1500
   },
   "read_after": {
