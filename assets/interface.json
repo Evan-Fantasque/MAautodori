@@ -46,13 +46,27 @@
     },
     "task": [
         {
+            "name": "启动游戏到主菜单",
+            "entry": "start_app"
+        },
+        {
+            "name": "单人演出准备（停在开打前）",
+            "entry": "SoloPrepare",
+            "option": ["单人模式"]
+        },
+        {
             "name": "自由演出（单曲）",
             "entry": "ui_simplified_entry"
         },
         {
+            "name": "每日清火＋免费三抽",
+            "entry": "DailyClear",
+            "option": ["清火设置"]
+        },
+        {
             "name": "自由演出（挖矿）",
             "entry": "select_song",
-            "option": []
+            "option": ["检查火焰"]
         },
         {
             "name": "巡回演出",
@@ -74,6 +88,56 @@
         //}
     ],
     "option": {
+        "清火设置": {
+            "type": "input",
+            "inputs": [
+                {"name": "song", "label": "完整曲名", "default": "SAVIOR OF SONG", "verify": "^.*\\S.*$"},
+                {"name": "difficulty", "label": "难度", "default": "EXPERT", "verify": "^(EASY|NORMAL|HARD|EXPERT|SPECIAL)$"},
+                {"name": "regular", "label": "常规用火", "default": "3", "pipeline_type": "int", "verify": "^[123]$"},
+                {"name": "max", "label": "优先10火", "default": "开", "verify": "^(开|关)$"}
+            ],
+            "pipeline_override": {
+                "DailyClear": {"custom_action_param": {"title": "{song}", "difficulty": "{difficulty}", "regular": "{regular}", "max": "{max}"}}
+            }
+        },
+        "检查火焰": {
+            "type": "switch",
+            "description": "演出开始前检查火焰。为零时关闭游戏，无法读出时停止任务。",
+            "default_case": "No",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "disable_liveplay": {"next": ["PlayCheckBoost"]}
+                    }
+                },
+                {"name": "No"}
+            ]
+        },
+        "单人模式": {
+            "type": "select",
+            "cases": [
+                {
+                    "name": "自由演出",
+                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterFree"]}}
+                },
+                {
+                    "name": "挑战演出",
+                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterChallenge"]}}
+                },
+                {
+                    "name": "舞台挑战（主舞台）",
+                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterStage"]}}
+                },
+                {
+                    "name": "舞台挑战（特别舞台）",
+                    "pipeline_override": {
+                        "SoloModeMenu": {"next": ["SoloEnterStage"]},
+                        "SoloEnterStage": {"next": ["SoloSpecialStageCatalog", "[JumpBack]SoloSwitchSpecialStage"]}
+                    }
+                }
+            ]
+        },
         "任务选项1": {
             "type": "select",
             "cases": [

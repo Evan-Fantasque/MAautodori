@@ -33,7 +33,9 @@ class SavePlayResult(CustomAction):
                 try:
                     detail = argv.reco_detail.best_result.detail
                     if isinstance(detail, str):
-                        playresult = json.loads(detail)
+                        detail = json.loads(detail)
+                    if isinstance(detail, dict):
+                        playresult = detail
                 except json.JSONDecodeError:
                     logger.error("无法解析结算数据 JSON")
                     playresult = {}
@@ -62,7 +64,7 @@ class SavePlayResult(CustomAction):
                 result=playresult,
                 succeed=succeed,
                 chart_id=global_state.current_song_id,
-                difficulty=global_state.difficulty,
+                difficulty=global_state.current_difficulty or global_state.difficulty,
             )
 
             # 5. 歌曲尝试次数追踪

@@ -1,131 +1,74 @@
-from maa.custom_recognition import CustomRecognition
-from maa.context import Context
-from maa.define import RectType
-from typing import Union, Optional
-import logging
 import json
-from fuzzywuzzy import process as fzwzprocess
+import logging
+
+from fuzzywuzzy import process
+from maa.context import Context
+from maa.custom_recognition import CustomRecognition
 
 from ..utils.StateCore import global_state
 
+
+logger = logging.getLogger("SongRecognition")
+
+
 class SongRecognition(CustomRecognition):
-    def analyze(
-        self, context: Context, argv: CustomRecognition.AnalyzeArg
-    ) -> Union[CustomRecognition.AnalyzeResult, Optional[RectType]]:
-        logger = logging.getLogger("SongRecognition")
-        
-        # ROI 优先级：管线 argv.roi > global_state 后备
-        if argv.roi:
-            # 必须转换为 list 以保证 json 序列化成功
-            roi = [argv.roi.x, argv.roi.y, argv.roi.w, argv.roi.h]
-        elif global_state.roi:
-            roi = global_state.roi
-        else:
-            logger.error("未配置 ROI，请在 pipeline JSON 中为 SongRecognition 节点添加 roi 字段")
-            return self.AnalyzeResult(None, "")
+    def analyze(self, context: Context, argv: CustomRecognition.AnalyzeArg):
+        params = json.loads(argv.custom_recognition_param or "{}") or {}
+        ocr_node = params.get("ocr_node", "PlaySongTitle")
+        height, width = argv.image.shape[:2]
+        roi = list(argv.roi) if argv.roi else None
+        has_region = roi and roi[2] > 0 and roi[3] > 0 and roi != [0, 0, width, height]
 
-        live_mode = global_state.live_mode
-        is_full_song = global_state.is_full_song
-        is_high_difficulty = global_state.is_high_difficulty
-        difficulty = global_state.difficulty
+        override = {}
+        if has_region:
+            override = {ocr_node: {"roi": roi}}
+        elif ocr_node == "PlaySongTitle":
+            if not global_state.roi:
+                logger.warning("曲名识别缺少 ROI，请配置识别区域或指定 OCR 节点。")
+                return None
+            override = {ocr_node: {"roi": global_state.roi}}
 
-        models_to_try = ["ppocr_v5/zh_cn-server", ""]
+        recognition = context.run_recognition(ocr_node, argv.image, override)
+        if not recognition or not recognition.best_result:
+            return None
+        text = recognition.best_result.text
+        mode = global_state.live_mode
+        if mode not in ("medley_single", "free_single") and "full" in text.lower():
+            return None
 
-        def fuzzy_match_song(name):
-            return fzwzprocess.extractOne(name, list(global_state.all_song_name_indexes.keys()))
+        try:
+            song_ids = global_state.all_song_name_indexes
+            match = process.extractOne(text, song_ids.keys())
+        except Exception:
+            logger.exception("无法匹配曲库")
+            return None
+        if not match:
+            return None
 
-        def check_song_available(name, id_, diff, mode, is_full):
-            if name.startswith("[FULL]") and not is_full:
-                return False
-            if mode == "full_auto":
-                if id_:
-                    attempt_count = global_state.song_attempt_count_dict.get(id_, 0)
-                    max_attempt_count = global_state.max_attempt_count
-                    if attempt_count >= max_attempt_count:
-                        logger.warning(f"Song '{name}' has reached max attempt count ({attempt_count}).")
-                        return False
+        name, score = match
+        adjusted_score = score * min(len(text), len(name)) / max(len(text), len(name))
+        if adjusted_score <= 50:
+            return None
 
-                    not_fc_count = global_state.not_fc_count_dict.get(id_, 0)
-                    max_not_fc = global_state.max_continuous_not_fc_count
-                    if not_fc_count >= max_not_fc:
-                        logger.warning(f"Song '{name}' has reached the non-FC limit ({not_fc_count}).")
-                        global_state.not_fc_count_dict[id_] = 0
-                        return False
-            return True
+        song_id = song_ids[name]
+        if mode == "free_single":
+            if global_state.is_full_song:
+                name = "[FULL] " + name
+            elif global_state.is_high_difficulty:
+                name = "[超高難易度 SPECIAL] " + name
 
-        def match(model=None):
-            pipeline = {
-                "_ocr_song": {
-                    "recognition": "OCR",
-                    "only_rec": True,
-                    "roi": roi,
-                },
-            }
-            if model:
-                pipeline["_ocr_song"]["model"] = model
-            try:
-                logger.info(f"Pipeline: {pipeline}")
-                logger.info(f"Type of roi: {type(roi)}")
-                
-                ocr_result = context.run_recognition("_ocr_song", argv.image, pipeline)
-                if not ocr_result or not ocr_result.best_result:
-                    return None
-                    
-                ocr_text = ocr_result.best_result.text
-                logger.info(f"OCR ({model or 'default'}) raw text: '{ocr_text}'")
-
-                if live_mode not in ["medley_single", "free_single"] and "full" in ocr_text.lower():
-                    return 100
-
-                match_result = fuzzy_match_song(ocr_text)
-                if not match_result:
-                    return None
-
-                matched_name, raw_score = match_result[0], match_result[1]
-
-                len_ocr = len(ocr_text)
-                len_matched = len(matched_name)
-                length_ratio = min(len_ocr, len_matched) / max(len_ocr, len_matched) if len_ocr and len_matched else 0
-                adjusted_score = raw_score * length_ratio
-
-                logger.info(
-                    f"Adjusted score for '{matched_name}' with length penalty ({model or 'default'}): "
-                    f"{adjusted_score:.2f} (raw: {raw_score}, len_ratio: {length_ratio:.2f})"
-                )
-                return (matched_name, adjusted_score)
-
-            except Exception as e:
-                logger.error(f"OCR ({model or 'default'}) execution failed: {e}")
+        if name.startswith("[FULL]") and not global_state.is_full_song:
+            return None
+        if mode == "full_auto":
+            if global_state.song_attempt_count_dict.get(song_id, 0) >= global_state.max_attempt_count:
+                logger.warning("歌曲 %r 已达尝试上限", name)
+                return None
+            if global_state.not_fc_count_dict.get(song_id, 0) >= global_state.max_continuous_not_fc_count:
+                logger.warning("歌曲 %r 已达未 Full Combo 上限", name)
+                global_state.not_fc_count_dict[song_id] = 0
                 return None
 
-        results = [m for m in [match(model) for model in models_to_try] if m]
-
-        if not results or 100 in results:
-            return self.AnalyzeResult(None, "")
-
-        best_match = max(results, key=lambda x: x[1])
-
-        if best_match and best_match[1] > 50:
-            matched_song_name = best_match[0]
-            adjusted_confidence = best_match[1]
-
-            if live_mode == "free_single":
-                if is_full_song:
-                    matched_song_name = "[FULL] " + matched_song_name
-                elif is_high_difficulty:
-                    matched_song_name = "[超高難易度 SPECIAL] " + matched_song_name
-
-            song_id = global_state.all_song_name_indexes.get(best_match[0])
-
-            if not check_song_available(matched_song_name, song_id, difficulty, live_mode, is_full_song):
-                return self.AnalyzeResult(None, "")
-
-            logger.info(f"Song recognised: '{matched_song_name}' (Adjusted Confidence: {adjusted_confidence:.2f}%)")
-            
-            # 保存当前识别出的歌曲信息到全局状态中，供后续 Action 使用
-            global_state.current_song_name = matched_song_name
-            global_state.current_song_id = song_id
-            
-            return self.AnalyzeResult(roi, matched_song_name)
-
-        return self.AnalyzeResult(None, "")
+        global_state.current_song_name = name
+        global_state.current_song_id = song_id
+        logger.info("曲名识别为 %r（%.2f%%）", name, adjusted_score)
+        return self.AnalyzeResult(recognition.best_result.box, name)

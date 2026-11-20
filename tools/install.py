@@ -29,75 +29,51 @@ os_name = sys.argv[2]
 arch = sys.argv[3]
 
 
-def get_dotnet_platform_tag():
-    """自动检测当前平台并返回对应的dotnet平台标签"""
-    if os_name == "win" and arch == "x86_64":
-        platform_tag = "win-x64"
-    elif os_name == "win" and arch == "aarch64":
-        platform_tag = "win-arm64"
-    elif os_name == "macos" and arch == "x86_64":
-        platform_tag = "osx-x64"
-    elif os_name == "macos" and arch == "aarch64":
-        platform_tag = "osx-arm64"
-    elif os_name == "linux" and arch == "x86_64":
-        platform_tag = "linux-x64"
-    elif os_name == "linux" and arch == "aarch64":
-        platform_tag = "linux-arm64"
-    else:
-        print("Unsupported OS or architecture.")
-        print("available parameters:")
-        print("version: e.g., v1.0.0")
-        print("os: [win, macos, linux, android]")
-        print("arch: [aarch64, x86_64]")
-        sys.exit(1)
-
-    return platform_tag
+mxu_entries = {"win": "mxu.exe", "linux": "mxu", "macos": "mxu.app"}
 
 
 def install_deps():
-    if not (working_dir / "deps" / "bin").exists():
-        print('Please download the MaaFramework to "deps" first.')
-        print('请先下载 MaaFramework 到 "deps"。')
-        sys.exit(1)
+    sdk_dir = working_dir / "deps"
+    sdk_bin = sdk_dir / "bin"
+    if not sdk_bin.is_dir():
+        raise FileNotFoundError('Extract the MaaFramework release into "deps" first.')
+
+    if os_name not in (*mxu_entries, "android") or arch not in ("aarch64", "x86_64"):
+        raise ValueError(f"Unsupported OS or architecture: {os_name} {arch}")
+
+    licenses_dir = install_path / "licenses"
+    agent_binaries = sdk_dir / "share" / "MaaAgentBinary"
 
     if os_name == "android":
-        shutil.copytree(
-            working_dir / "deps" / "bin",
-            install_path,
-            dirs_exist_ok=True,
-        )
-        shutil.copytree(
-            working_dir / "deps" / "share" / "MaaAgentBinary",
-            install_path / "MaaAgentBinary",
-            dirs_exist_ok=True,
-        )
+        shutil.copytree(sdk_bin, install_path, dirs_exist_ok=True)
+        shutil.copytree(agent_binaries, install_path / "MaaAgentBinary", dirs_exist_ok=True)
     else:
-        shutil.copytree(
-            working_dir / "deps" / "bin",
-            install_path / "runtimes" / get_dotnet_platform_tag() / "native",
-            ignore=shutil.ignore_patterns(
-                "*MaaDbgControlUnit*",
-                "*MaaThriftControlUnit*",
-                "*MaaRpc*",
-                "*MaaHttp*",
-                "plugins",
-                "*.node",
-                "*MaaPiCli*",
-            ),
-            dirs_exist_ok=True,
-        )
-        shutil.copytree(
-            working_dir / "deps" / "share" / "MaaAgentBinary",
-            install_path / "libs" / "MaaAgentBinary",
-            dirs_exist_ok=True,
-        )
-        shutil.copytree(
-            working_dir / "deps" / "bin" / "plugins",
-            install_path / "plugins" / get_dotnet_platform_tag(),
-            dirs_exist_ok=True,
-        )
+        mxu_dir = sdk_dir / "mxu"
+        frontend = mxu_dir / mxu_entries[os_name]
+        if not frontend.exists():
+            raise FileNotFoundError(f"Extract the MXU release into {mxu_dir} first.")
+        install_path.mkdir(parents=True, exist_ok=True)
+        if frontend.is_dir():
+            shutil.copytree(frontend, install_path / frontend.name, dirs_exist_ok=True, symlinks=True)
+        else:
+            shutil.copy2(frontend, install_path)
 
+        shutil.copytree(
+            sdk_bin,
+            install_path / "maafw",
+            ignore=shutil.ignore_patterns("*.node", "*.pdb"),
+            dirs_exist_ok=True,
+        )
+        shutil.copytree(
+            agent_binaries,
+            install_path / "maafw" / "MaaAgentBinary",
+            dirs_exist_ok=True,
+        )
+        licenses_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(mxu_dir / "LICENSE", licenses_dir / "MXU.txt")
 
+    licenses_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(sdk_dir / "LICENSE.md", licenses_dir / "MaaFramework.md")
 
 def install_resource():
 
@@ -117,6 +93,13 @@ def install_resource():
         interface = jsonc.load(f)
 
     interface["version"] = version
+    if os_name == "win":
+        interface["agent"]["child_exec"] = "./.venv/Scripts/python.exe"
+    elif os_name != "android":
+        interface["agent"]["child_exec"] = "./.venv/bin/python"
+    else:
+        interface["agent"]["child_exec"] = "python"
+    interface["agent"]["child_args"] = ["./agent/main.py"]
 
     with open(install_path / "interface.json", "w", encoding="utf-8") as f:
         jsonc.dump(interface, f, ensure_ascii=False, indent=4)
@@ -137,8 +120,17 @@ def install_agent():
     shutil.copytree(
         working_dir / "agent",
         install_path / "agent",
+        ignore=shutil.ignore_patterns("__pycache__", "cache", ".version"),
         dirs_exist_ok=True,
     )
+    shutil.copy2(working_dir / "requirements.txt", install_path)
+    minitouch_assets = working_dir / "deps" / "minitouch_EvATive7"
+    if minitouch_assets.is_dir():
+        shutil.copytree(
+            minitouch_assets,
+            install_path / "share" / "MinitouchEvATive7",
+            dirs_exist_ok=True,
+        )
 
 
 if __name__ == "__main__":

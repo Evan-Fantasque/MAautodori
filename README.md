@@ -14,6 +14,44 @@
 > **MaaFramework** 是基于图像识别技术、运用 [MAA](https://github.com/MaaAssistantArknights/MaaAssistantArknights) 开发经验去芜存菁、完全重写的新一代自动化黑盒测试框架。
 > 低代码的同时仍拥有高扩展性，旨在打造一款丰富、领先、且实用的开源库，助力开发者轻松编写出更好的黑盒测试程序，并推广普及。
 
+## MAautodori Windows 开发包
+
+Windows x64 打包使用 MaaFramework `v6.0.0-beta.3`（Python 包 `MaaFw==6.0.0b3`）和 MXU `v2.11.2`。Agent 与 Pipeline 检查工具使用同一 MaaFramework 版本。升级时同步更新 `requirements.txt`、`maatools.config.mts`、打包工作流及 `deps/tools/` 的 Schema。
+
+从仓库根目录运行 `git submodule update --init --recursive`，再运行 `python tools/configure.py` 配置 OCR。打包流程见 [.github/workflows/install.yml](.github/workflows/install.yml)，产物位于 `install/`。
+
+Windows 上运行包内 `mxu.exe` 需要 Microsoft Edge WebView2。Agent 使用包内的 `.venv`，以便 MXU 提权重启后仍加载配套的 MaaFw。首次运行发布包时，从解压目录创建 Python 环境、安装依赖并启动界面。
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\mxu.exe
+```
+
+发布包将 `mxu.exe`、`maafw/`、`interface.json`、`resource/` 和 `agent/` 放在同一目录。MXU 从 `maafw/MaaAgentBinary/` 加载 MaaTouch 和 Minitouch。
+
+上游源码见 [MXU v2.11.2](https://github.com/MaaXYZ/MXU/tree/v2.11.2) 和 [MaaFramework v6.0.0-beta.3](https://github.com/MaaXYZ/MaaFramework/tree/v6.0.0-beta.3)。随包提供的许可证位于 `licenses/`。
+
+## 从 MuMu 启动到单人演出准备
+
+1. 打开 `install/mxu.exe`，选择「模拟器」和「简中服」。第一次保存配置时，先打开 MuMu，选中要使用的 ADB 设备。
+2. 在 MXU 的「前置程序」添加 MuMu 安装目录下的 `nx_main\MuMuManager.exe`，参数填 `control -v 0 launch`。启用「等待退出」，将 `0` 换成实际实例编号。MXU 会运行该命令并等已保存的 ADB 设备可用。[MXU 2.11.2 前置程序实现](https://github.com/MaaXYZ/MXU/blob/v2.11.2/src/components/Toolbar.tsx#L547)
+3. 按顺序添加「启动游戏到主菜单」和「单人演出准备（停在开打前）」，再在第二个任务选择模式。使用当前曲目和难度。若只需进首页，保留第一个任务即可。
+
+启动流程使用 MaaFramework 的应用启动、OCR 和区域校验，处理已识别的常规签到、活动签到、新曲提示、促销翻页和通知窗口。识别到需要登录的提示时关闭游戏并停止，遇到未知界面时等待至超时。若游戏已停留在其他页面，先返回标题页或主菜单。
+
+| 模式 | 自动流程停点 |
+| --- | --- |
+| 自由演出 | 编队页「演出开始」前 |
+| 挑战演出 | 活动开放时，到挑战点数选择窗口，等待玩家确认 |
+| 舞台挑战（主舞台、特别舞台） | 对应舞台的编队页「演出开始」前 |
+
+单人准备任务仅列出上述入口。旧打歌模块和本地调试方法见 [Agent 开发指南](agent/ARCHITECTURE_GUIDE.md)。
+
+`自由演出（单曲）` 从普通自由演出的「选择乐队」页面开始。它按页面标出的难度加载谱面，通过 MaaFramework 发送触控。运行前，请关闭游戏内的「自动演出」并确认火焰消耗设定。
+
+`每日清火＋免费三抽` 固定走普通单人自由演出。默认搜 `SAVIOR OF SONG` 的 `EXPERT`，可以在任务选项填完整曲名、更改难度及常规用火档（1～3），也可以关闭优先 10 火。选曲使用当前游戏筛选条件，找不到时尝试切到「所有」，仍被筛选排除时暂停。每场开打前核对扣火数字，确认结算后重读余额。清到 0 火后领取当天剩余的每日免费演出招募次数。
+
 ## 即刻开始
 
 - [📄 快速开始](https://maafw.com/docs/1.1-QuickStarted)

@@ -127,6 +127,7 @@ class Chart:
             default_move_slice_size,
             humanize: bool = True,
     ):
+        self.screen_resolution = screen_resolution
         notes: list[dict] = self._chart_data
 
         def get_lane_position(lane: int) -> tuple[int, int]:

@@ -2,91 +2,114 @@
     "start_app": {
         "action": "StartApp",
         "package": "com.bilibili.star.bili",
+        "timeout": 120000,
         "next": [
-            "find_startpage_menu",
-            "live_home_button",
-            "[JumpBack]ok_button",
-            "[JumpBack]confirm_button"
+            "StartupLoginRequired",
+            "[JumpBack]StartupCloseNotice",
+            "[JumpBack]StartupClosePromotion",
+            "[JumpBack]StartupAdvancePromotion",
+            "[JumpBack]StartupAdvanceNewSong",
+            "[JumpBack]StartupRewardNext",
+            "[JumpBack]StartupDailyDialogue",
+            "StartupHomeReady",
+            "[JumpBack]StartupTapTitle"
         ]
     },
-    "find_startpage_menu": {
-        "recognition": "TemplateMatch",
-        "template": "startpage/menu.png",
-        "next": ["find_startpage_age_tag"],
-        "roi": [
-            1004,
-            495,
-            276,
-            225
+    "StartupTapTitle": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [515, 609, 250, 44], "expected": "^TAP\\s*TO\\s*STA(RT|E)$"},
+            {"recognition": "OCR", "roi": [1170, 605, 110, 115], "expected": "^菜单$"}
         ],
-        "timeout": 40000
-    },
-    "find_startpage_age_tag": {
-        "recognition": "TemplateMatch",
-        "template": "startpage/age_tag.png",
-        "next": ["find_startpage_criware"],
-        "roi": [
-            936,
-            0,
-            344,
-            256
-        ]
-    },
-    "find_startpage_criware": {
-        "recognition": "TemplateMatch",
-        "template": "startpage/criware.png",
-        "next": ["tap_start"],
-        "roi": [
-            936,
-            0,
-            344,
-            256
-        ]
-    },
-    "tap_start": {
         "action": "Click",
-        "target": [
-            457,
-            368,
-            388,
-            284
-        ],
-        "next": [
-            "start_task_stop",
-            "[JumpBack]next_button",
-            "[JumpBack]tap_to_next",
-            "[JumpBack]close_button",
-            "[JumpBack]reader_menu",
-            "[JumpBack]download",
-            "[JumpBack]connect_failed",
-            "[JumpBack]safe_random_click"
-        ],
-        "timeout": 300000
+        "target": [548, 620, 176, 30],
+        "max_hit": 1
     },
-    "download": {
-        "recognition": "TemplateMatch",
-        "template": "common/button/download.png",
-        "action": "Click"
+    "StartupLoginRequired": {
+        "recognition": "OCR",
+        "roi": [180, 120, 920, 530],
+        "expected": ["登录已失效", "登录状态失效", "请先登录", "请重新登录", "密码登录", "验证码登录", "手机号码登录", "扫码登录", "账号登录", "登录账号选择"],
+        "action": "StopApp",
+        "package": "com.bilibili.star.bili",
+        "focus": {"Node.Action.Starting": "需要先手动登录游戏，本次启动已停止。"},
+        "next": ["StartupStopForLogin"]
     },
-    "safe_random_click": {
+    "StartupStopForLogin": {
+        "action": "StopTask"
+    },
+    "StartupDailyDialogue": {
+        "recognition": "OCR",
+        "roi": [340, 14, 598, 84],
+        "expected": "登录游戏获得奖励",
         "action": "Click",
-        "target": [
-            451,
-            576,
-            164,
-            129
-        ],
-        "post_delay": 500
+        "target": [320, 580, 68, 62],
+        "post_delay": 900,
+        "max_hit": 1
     },
-    "start_task_stop": {
-        "recognition": "TemplateMatch",
-        "template": "live/button/live_home.png",
-        "roi": [
-            1042,
-            543,
-            238,
-            177
+    "StartupRewardNext": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [310, 436, 665, 50], "expected": "^获得了"},
+            {"recognition": "OCR", "roi": [936, 610, 246, 75], "expected": "^下一步$"}
         ],
-        "threshold": 0.95
+        "box_index": 1,
+        "action": "Click",
+        "post_delay": 850,
+        "max_hit": 8
+    },
+    "StartupAdvanceNewSong": {
+        "recognition": "OCR",
+        "roi": [460, 630, 350, 62],
+        "expected": "^TAP\\s*TO\\s*NEXT$",
+        "action": "Click",
+        "post_delay": 800,
+        "max_hit": 8
+    },
+    "StartupPromotionPage": {
+        "recognition": "OCR",
+        "roi": [944, 51, 150, 59],
+        "expected": "^[1-9][0-9]*\\s*[/／]\\s*[1-9][0-9]*$"
+    },
+    "StartupAdvancePromotion": {
+        "recognition": "And",
+        "all_of": [
+            "StartupPromotionPage",
+            {"recognition": "OCR", "roi": [862, 608, 238, 76], "expected": "^下一步$"}
+        ],
+        "box_index": 1,
+        "action": "Click",
+        "post_delay": 800,
+        "max_hit": 8
+    },
+    "StartupClosePromotion": {
+        "recognition": "And",
+        "all_of": [
+            "StartupPromotionPage",
+            {"recognition": "OCR", "roi": [510, 605, 340, 85], "expected": "^关闭$"}
+        ],
+        "box_index": 1,
+        "action": "Click",
+        "post_delay": 800,
+        "max_hit": 8
+    },
+    "StartupCloseNotice": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [138, 29, 155, 58], "expected": "^(通知|公告)$"},
+            {"recognition": "OCR", "roi": [520, 609, 246, 82], "expected": "^关闭$"}
+        ],
+        "box_index": 1,
+        "action": "Click",
+        "post_delay": 800,
+        "max_hit": 4
+    },
+    "StartupHomeReady": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "ColorMatch", "roi": [1095, 591, 153, 74], "lower": [232, 30, 68], "upper": [255, 100, 161], "count": 5500},
+            {"recognition": "OCR", "roi": [1090, 653, 166, 46], "expected": "^演出$"},
+            {"recognition": "OCR", "roi": [788, 658, 129, 43], "expected": "^乐队$"}
+        ],
+        "focus": {"Node.Action.Succeeded": "已进入游戏主菜单。"}
     }
 }

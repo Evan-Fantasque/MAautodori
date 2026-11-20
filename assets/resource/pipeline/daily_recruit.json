@@ -1,0 +1,116 @@
+{
+    "DailyRecruitOpen": {
+        "next": ["DailyRecruitBanner", "[JumpBack]DailyRecruitFromHome", "[JumpBack]DailyRecruitSelectTab", "[JumpBack]DailyRecruitScroll"],
+        "timeout": 45000
+    },
+    "DailyRecruitFromHome": {
+        "recognition": "And",
+        "all_of": ["StartupHomeReady", {"recognition": "OCR", "roi": [645, 660, 114, 41], "expected": "^招募$"}],
+        "box_index": 1,
+        "action": "Click",
+        "post_delay": 900,
+        "max_hit": 1
+    },
+    "DailyRecruitList": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [254, 651, 136, 48], "expected": "^招募详情$"},
+            {"recognition": "TemplateMatch", "roi": [10, 10, 88, 88], "template": "daily/recruit_back.png", "threshold": 0.9}
+        ]
+    },
+    "DailyRecruitSelectTab": {
+        "recognition": "And",
+        "all_of": [
+            "DailyRecruitList",
+            {"recognition": "TemplateMatch", "roi": [48, 88, 160, 491], "template": "daily/free_recruit_tab.png", "threshold": 0.91}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 800, "max_hit": 2
+    },
+    "DailyRecruitScroll": {
+        "recognition": "And",
+        "all_of": ["DailyRecruitList"],
+        "action": "Swipe",
+        "begin": [122, 515, 1, 1],
+        "end": [122, 240, 1, 1],
+        "duration": 480,
+        "post_delay": 650,
+        "max_hit": 20
+    },
+    "DailyRecruitBanner": {
+        "recognition": "And",
+        "all_of": [
+            "DailyRecruitList",
+            {"recognition": "TemplateMatch", "roi": [255, 349, 265, 116], "template": "daily/free_recruit.png", "threshold": 0.88}
+        ]
+    },
+    "DailyRecruitRemaining": {"recognition": "OCR", "roi": [1114, 598, 86, 27], "only_rec": true, "replace": [["\\s", ""]], "expected": "^剩余[0-3]回$"},
+    "DailyRecruitExhausted": {"recognition": "OCR", "roi": [1110, 594, 155, 105], "expected": "^(剩余0回|今日已完成[！!]?)$"},
+    "DailyRecruitLockedBadge": {
+        "recognition": "OCR", "roi": [1110, 588, 164, 112],
+        "expected": "^(今日)?(?:尚未|未)完成演出[！!]?$"
+    },
+    "DailyRecruitSingle": {"recognition": "OCR", "roi": [1125, 627, 126, 31], "expected": "^1\\s*次招募$"},
+    "DailyRecruitFree": {"recognition": "OCR", "roi": [1199, 658, 54, 28], "expected": "^免费$"},
+    "DailyRecruitConfirm": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [382, 200, 94, 42], "expected": "^确认$"},
+            {"recognition": "OCR", "roi": [473, 273, 338, 43], "expected": "^每日最多\\s*3\\s*次免费[！!]?\\s*演出招募$"},
+            {"recognition": "OCR", "roi": [655, 446, 226, 62], "expected": "^招募$"}
+        ],
+        "box_index": 2
+    },
+    "DailyRecruitLocked": {
+        "recognition": "OCR",
+        "roi": [371, 245, 537, 162],
+        "expected": "(?:请先|尚未|需要|今日).*(?:演出|LIVE)|(?:演出|LIVE).*(?:后才可|后方可|未完成)"
+    },
+    "DailyRecruitDismissLocked": {
+        "next": ["DailyRecruitBanner", "[JumpBack]DailyRecruitLockedOK"],
+        "timeout": 8000
+    },
+    "DailyRecruitLockedOK": {
+        "recognition": "And",
+        "all_of": ["DailyRecruitLocked", {"recognition": "OCR", "roi": [525, 427, 231, 117], "expected": "^(确定|OK)$"}],
+        "box_index": 1,
+        "action": "Click",
+        "max_hit": 1
+    },
+    "DailyRecruitReveal": {
+        "next": ["DailyRecruitResult", "[JumpBack]DailyRecruitCut", "[JumpBack]DailyRecruitSkip", "[JumpBack]DailyRecruitCard"],
+        "timeout": 75000
+    },
+    "DailyRecruitBack": {
+        "next": ["DailyRecruitBanner", "[JumpBack]DailyRecruitRewardOK", "[JumpBack]DailyRecruitResultOK"],
+        "timeout": 20000
+    },
+    "DailyRecruitCut": {
+        "recognition": "OCR", "roi": [479, 601, 319, 44], "expected": "^TOUCH\\s*TO\\s*CUT$",
+        "action": "Click", "post_delay": 900, "max_hit": 1
+    },
+    "DailyRecruitSkip": {
+        "recognition": "OCR", "roi": [1154, 54, 97, 32], "expected": "^SKIP$",
+        "action": "Click", "post_delay": 1000, "max_hit": 4
+    },
+    "DailyRecruitCard": {
+        "recognition": "OCR", "roi": [19, 669, 87, 36], "expected": "^分享$",
+        "action": "Click", "target": [637, 355, 7, 9], "post_delay": 850, "max_hit": 2
+    },
+    "DailyRecruitResult": {
+        "recognition": "OCR", "roi": [114, 46, 170, 44], "expected": "^招募结果$"
+    },
+    "DailyRecruitRewardOK": {
+        "recognition": "And",
+        "all_of": [
+            "DailyRecruitResult",
+            {"recognition": "OCR", "roi": [372, 83, 164, 41], "expected": "^获得道具$"},
+            {"recognition": "OCR", "roi": [529, 573, 222, 58], "expected": "^确定$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 500, "max_hit": 1
+    },
+    "DailyRecruitResultOK": {
+        "recognition": "And",
+        "all_of": ["DailyRecruitResult", {"recognition": "OCR", "roi": [953, 616, 228, 65], "expected": "^确定$"}],
+        "box_index": 1, "action": "Click", "post_delay": 750, "max_hit": 1
+    }
+}

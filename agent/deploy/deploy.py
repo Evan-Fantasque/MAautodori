@@ -8,6 +8,7 @@ import json
 import logging
 import subprocess
 import sys
+from importlib.metadata import PackageNotFoundError, version as installed_version
 from pathlib import Path
 
 # 强制 stdout/stderr 使用 UTF-8，避免 Windows cp1252 下中文日志/print 报 UnicodeEncodeError
@@ -48,6 +49,8 @@ def setup_logger():
     # 避免重复添加 handler
     if logger.handlers:
         return logger
+
+    log_dir.mkdir(parents=True, exist_ok=True)
 
     # 创建格式器
     formatter = logging.Formatter(
@@ -173,6 +176,21 @@ def load_requirements_from_file():
         raise ValueError(f"读取 requirements.txt 失败: {e}")
 
 
+def requirements_satisfied():
+    try:
+        from packaging.requirements import Requirement
+
+        for package_spec in load_requirements_from_file():
+            requirement = Requirement(package_spec)
+            if requirement.marker and not requirement.marker.evaluate():
+                continue
+            if not requirement.specifier.contains(installed_version(requirement.name), prereleases=True):
+                return False
+    except (ImportError, PackageNotFoundError, ValueError):
+        return False
+    return True
+
+
 def install_package_with_fallback(package_spec):
     """
     尝试使用多个源安装包，按顺序回退
@@ -285,10 +303,12 @@ def deploy():
         # 读取已保存的版本
         saved_version = get_saved_version()
 
-        if saved_version == current_version:
-            logger.info(f"版本一致 (v{saved_version})，跳过依赖检查")
+        if requirements_satisfied():
+            if saved_version != current_version:
+                save_version(current_version)
+            logger.info("已安装包内要求的 Python 依赖")
             logger.info("=" * 50)
-            print("info: 版本一致，跳过依赖检查")
+            print("info: 已安装包内要求的 Python 依赖")
             return True
 
         if saved_version:

@@ -1,6 +1,6 @@
 import threading
 import agent.custom.utils.player as player
-from minitouchpy import MNT
+from functools import cached_property
 from maa.context import Context
 from minitouchpy import (
     MNT,
@@ -25,16 +25,12 @@ class MAautodoriState:
         self.mnt: Optional[MNT] = None
         self.orientation: int = 0
 
-        self.all_songs: dict = BestdoriAPI.get_song_list()
-        self.all_song_name_indexes: dict[str, str] = {
-            list(filter(lambda title: title is not None, sinfo["musicTitle"]))[0]: sid
-            for sid, sinfo in self.all_songs.items()
-        }
-
         # --- 当前歌曲状态 ---
         self.current_song_id: Optional[str] = None
         self.current_song_name: Optional[str] = None
         self.current_chart: Optional[Chart] = None
+        self.current_touch_backend: str = "legacy"
+        self.current_difficulty: Optional[str] = None
         self.current_mode: Optional[str] = None
 
         # --- 任务配置 ---
@@ -56,7 +52,6 @@ class MAautodoriState:
         self.not_fc_count_dict: dict[str, int] = {}
         self.song_attempt_count_dict: dict[str, int] = {}
         self.last_played_song_id: Optional[str] = None
-        self.min_liveboost: int = 1
 
         # --- 线程控制 ---
         self.stop_event = threading.Event()
@@ -70,6 +65,15 @@ class MAautodoriState:
         # --- 触控命令日志 ---
         self.cmd_log_list: list = []
         self.cmd_log_list_lock = threading.Lock()
+
+    @cached_property
+    def all_song_name_indexes(self) -> dict[str, str]:
+        indexes = {}
+        for song_id, song in BestdoriAPI.get_song_list().items():
+            title = next((name for name in song["musicTitle"] if name), None)
+            if title:
+                indexes[title] = song_id
+        return indexes
     
     def __del__(self):
         # 确保在对象销毁时清理资源
@@ -159,11 +163,12 @@ class MAautodoriState:
 global_state = MAautodoriState()
 
 def init_player_and_mnt(context: Context):
-    global global_state
     ctrl_info = context.tasker.controller.info
 
-    adb_path = str(ctrl_info.get("adb_path"))
+    adb_path = ctrl_info.get("adb_path")
     adb_serial = ctrl_info.get("adb_serial")
+    if not adb_path or not adb_serial:
+        raise RuntimeError("打歌需要已连接的 ADB 设备")
     extras = ctrl_info.get("config", {}).get("extras", {})
 
     type_ = None
@@ -176,7 +181,7 @@ def init_player_and_mnt(context: Context):
         path = mumu_info.get("path")
         index = mumu_info.get("index", 0)
         # 根据路径或版本进一步判断是 v4 还是 v5
-        if "MuMuPlayer12" in path or "nx_main" in adb_path:
+        if "MuMuPlayer12" in (path or "") or "nx_main" in adb_path:
             type_ = "mumuv5"
         else:
             type_ = "mumuv4"
@@ -189,17 +194,20 @@ def init_player_and_mnt(context: Context):
     if not type_:
         raise RuntimeError("无法从 Context 中识别出支持的模拟器配置(mumu/ld)")
 
-    if type(path) == str:
+    if isinstance(path, str) and path:
         current_player = player.Player(type_, Path(path), index)
     else:
         raise RuntimeError("模拟器路径配置错误，必须为字符串类型")
+    root = get_main_py_path().parent.parent
+    mnt_assets = root / "share/MinitouchEvATive7"
+    if not mnt_assets.is_dir():
+        mnt_assets = root / "assets/minitouch_EvATive7"
     mnt = MNT(
         adb_serial,
         type_="EvATive7",
         communicate_type=MNTServerCommunicateType.STDIO,
-        mnt_asset_path=str(
-            get_main_py_path().parent.parent / "assets/minitouch_EvATive7"
-        ),
+        additional_param=[],
+        mnt_asset_path=mnt_assets,
         callback=global_state.mnt_callback,
         adb_executor=adb_path,
     )

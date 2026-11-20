@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import subprocess
@@ -9,16 +10,9 @@ from ..utils.chart import Chart
 class SaveSong(CustomAction):
     def run(self, context: Context, argv: CustomAction.RunArg) -> CustomAction.RunResult:
         logger = logging.getLogger("SaveSong")
-        
-        # 1. 确保设备已初始化
-        if not global_state.player or not global_state.mnt:
-            try:
-                global_state.player, global_state.mnt = init_player_and_mnt(context)
-            except Exception as e:
-                logger.error(f"初始化设备失败: {e}", exc_info=True)
-                return CustomAction.RunResult(success=False)
+        global_state.current_chart = None
 
-        # 2. 从上一步（SongRecognition）的识别结果中获取歌曲名
+        # 从 SongRecognition 的识别结果中获取歌曲名
         if not argv.reco_detail or not argv.reco_detail.best_result:
             logger.error("未获取到识别结果")
             return CustomAction.RunResult(success=False)
@@ -28,6 +22,10 @@ class SaveSong(CustomAction):
             logger.error("识别结果中未包含歌曲名")
             return CustomAction.RunResult(success=False)
 
+        params = argv.custom_action_param
+        if isinstance(params, str):
+            params = json.loads(params)
+        native = isinstance(params, dict) and params.get("touch_backend") == "maafw"
         difficulty = global_state.difficulty
         humanize = global_state.human_delay_enabled
         default_move_slice_size = global_state.default_move_slice_size
@@ -42,32 +40,53 @@ class SaveSong(CustomAction):
             logger.error(f"无法找到歌曲 '{current_song_name}' 对应的 ID")
             return CustomAction.RunResult(success=False)
 
-        # 4. 更新全局状态
+        if not native and (not global_state.player or not global_state.mnt):
+            try:
+                global_state.player, global_state.mnt = init_player_and_mnt(context)
+            except Exception as e:
+                logger.error(f"初始化设备失败: {e}", exc_info=True)
+                return CustomAction.RunResult(success=False)
+
+        # 更新全局状态
         global_state.current_song_name = current_song_name
         global_state.current_song_id = current_song_id
         
-        # 5. 生成图谱与触控命令
+        # 生成图谱与触控命令
         try:
+            if native:
+                screen = context.tasker.controller.post_screencap().wait().get()
+                if screen is None or not screen.size:
+                    logger.error("无法读取编队页面")
+                    return self.RunResult(success=False)
+                detected = context.run_recognition("PlayBandDifficulty", screen)
+                if not detected or not detected.best_result:
+                    logger.error("未确认当前难度")
+                    return self.RunResult(success=False)
+                difficulty = detected.best_result.text.lower()
+                resolution = (screen.shape[1], screen.shape[0])
+            else:
+                resolution = global_state.player.resolution
+
             current_chart = Chart((current_song_id, difficulty), current_song_name)
             current_chart.notes_to_actions(
-                global_state.player.resolution, 
-                default_move_slice_size, 
-                humanize=humanize
+                resolution,
+                default_move_slice_size,
+                humanize=humanize,
             )
-            
-            # 获取屏幕方向
-            orientation = self._get_orientation(context)
-            global_state.orientation = orientation
-            
-            current_chart.actions_to_MNTcmd(
-                (global_state.mnt.max_x, global_state.mnt.max_y), 
-                orientation, 
-                offset, 
-                cmd_slice_size
-            )
-            
+            if not current_chart.actions:
+                logger.error("没有可播放的谱面动作")
+                return self.RunResult(success=False)
+            if not native:
+                orientation = self._get_orientation(context)
+                global_state.orientation = orientation
+                current_chart.actions_to_MNTcmd(
+                    (global_state.mnt.max_x, global_state.mnt.max_y), orientation, offset, cmd_slice_size,
+                )
+
             global_state.current_chart = current_chart
-            logger.info(f"Saved song chart for: {current_song_name}")
+            global_state.current_touch_backend = "maafw" if native else "legacy"
+            global_state.current_difficulty = difficulty
+            logger.info("Prepared %s (%s) with %s", current_song_name, difficulty, global_state.current_touch_backend)
             return CustomAction.RunResult(success=True)
             
         except Exception as e:

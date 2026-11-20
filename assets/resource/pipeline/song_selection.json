@@ -1,0 +1,14 @@
+{
+    "FreeSongList": {
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [110, 13, 280, 37], "expected": "^自由演出$"},
+            {"recognition": "OCR", "roi": [110, 48, 280, 43], "expected": "^选择乐曲$"},
+            {"recognition": "OCR", "roi": [1066, 27, 100, 54], "expected": "^筛选$"}
+        ]
+    },
+    "SongPickerDifficulty": {"recognition": "OCR", "only_rec": true, "roi": [999, 558, 107, 30]},
+    "SongPickerVisibleTitles": {"recognition": "OCR", "roi": [225, 108, 322, 594]},
+    "SongPickerNoEntries": {"recognition": "OCR", "roi": [270, 329, 240, 73], "expected": "^没有符合筛选条件"},
+    "SongPickerAllSongs": {"recognition": "OCR", "roi": [4, 104, 163, 470], "expected": "^(所有|全部)$"}
+}

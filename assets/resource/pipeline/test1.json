@@ -102,13 +102,7 @@
             "type": "Custom",
             "param": {
                 "custom_recognition": "SongRecognition",
-                "custom_recognition_param": {},
-                "roi": [
-                    221,
-                    541,
-                    574,
-                    36
-                ]
+                "custom_recognition_param": {"ocr_node": "PlayBandSongTitle"}
             }
         },
         "action": {

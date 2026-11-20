@@ -1,0 +1,160 @@
+{
+    "DailyClear": {
+        "action": "Custom", "custom_action": "DailyClear",
+        "custom_action_param": {},
+        "focus": {
+            "Node.Action.Failed": "每日清火提前停止，请查看日志和当前游戏画面。",
+            "Node.Action.Succeeded": "火焰已清完，今日免费招募已完成。"
+        }
+    },
+    "DailyLobby": {
+        "recognition": "Or", "any_of": ["StartupHomeReady", "SoloModeMenu", "FreeSongList", "SoloFreeReady"]
+    },
+    "DailyEnterSelection": {
+        "next": ["FreeSongList", "DailyBandBack", "SoloModeMenu", "SoloOpenLive"],
+        "timeout": 12000
+    },
+    "DailyBandBack": {
+        "recognition": "And", "all_of": ["SoloFreeReady"],
+        "action": "Click", "target": [32, 32, 42, 40], "next": ["FreeSongList"], "timeout": 10000
+    },
+    "DailyConfirmSong": {"next": ["SoloConfirmFreeSong"], "timeout": 8000},
+    "DailyBackToHome": {
+        "next": ["StartupHomeReady", "[JumpBack]DailyLobbyBack", "[JumpBack]DailyRecruitListBack"],
+        "timeout": 16000
+    },
+    "DailyLobbyBack": {
+        "recognition": "Or", "any_of": ["SoloFreeReady", "FreeSongList", "SoloModeMenu"],
+        "action": "Click", "target": [32, 32, 42, 40], "post_delay": 700, "max_hit": 4
+    },
+    "DailyRecruitListBack": {
+        "recognition": "And", "all_of": ["DailyRecruitList"],
+        "action": "Click", "target": [32, 32, 42, 40], "post_delay": 700, "max_hit": 1
+    },
+    "DailyBoostBalance": {
+        "recognition": "OCR", "roi": [979, 30, 61, 20], "only_rec": true,
+        "replace": [["[／]", "/"], ["\\s", ""]], "expected": "^\\d{1,2}/\\d{1,2}$"
+    },
+    "DailyBoostOpen": {"next": ["DailyOpenBoost"], "timeout": 6000},
+    "DailyOpenBoost": {
+        "recognition": "And",
+        "all_of": ["SingleFreeBand", {"recognition": "OCR", "roi": [844, 636, 57, 37], "expected": "^设[定置]$"}],
+        "box_index": 1, "action": "Click", "next": ["DailyBoostDialog"], "timeout": 6000
+    },
+    "DailyBoostDialog": {
+        "recognition": "OCR", "roi": [270, 28, 348, 51], "expected": "^LIVE\\s*BOOST\\s*消[费耗]设定$"
+    },
+    "DailyBoostMax": {
+        "recognition": "OCR", "roi": [925, 474, 121, 25], "only_rec": true,
+        "replace": [["\\s", ""]], "expected": "^今日剩余[1-9]次$"
+    },
+    "DailyBoostTier": {"recognition": "OCR", "roi": [298, 113, 56, 40], "only_rec": true, "expected": "^\\d{1,2}$"},
+    "DailyBoostSelected": {
+        "recognition": "ColorMatch", "roi": [981, 345, 42, 38],
+        "lower": [226, 35, 88], "upper": [255, 120, 187], "count": 130
+    },
+    "DailyBoostApply": {"next": ["DailyBoostConfirm"], "timeout": 6000},
+    "DailyBoostConfirm": {
+        "recognition": "And",
+        "all_of": ["DailyBoostDialog", "DailyBoostSelected", {"recognition": "OCR", "roi": [531, 611, 215, 55], "expected": "^OK$"}],
+        "box_index": 2, "action": "Click", "next": ["SoloFreeReady"], "timeout": 6000
+    },
+    "DailyBoostBefore": {"recognition": "OCR", "roi": [1046, 542, 35, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
+    "DailyBoostAfter": {"recognition": "OCR", "roi": [1099, 542, 51, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
+    "DailySettle": {
+        "next": ["DailyLiveStats", "PlayFailureVisible", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"],
+        "timeout": 45000
+    },
+    "DailyResumeSettlement": {
+        "recognition": "Or", "any_of": [
+            "DailyLiveStats", "DailyLiveRewardNext", "DailyLiveRewardOK", "DailyLiveLargeRewardOK",
+            "DailyLiveExpNext", "DailyLivePointsOK", "DailyLiveRewardList"
+        ]
+    },
+    "DailySettleBack": {
+        "next": [
+            "DailyLobby", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
+            "[JumpBack]DailyLiveRewardList", "[JumpBack]DailyLiveRewardNext",
+            "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
+            "[JumpBack]DailyLiveStory", "[JumpBack]DailyLiveStoryMenu",
+            "[JumpBack]DailyLiveStoryConfirm", "[JumpBack]DailyLiveHome"
+        ],
+        "timeout": 45000
+    },
+    "DailyLiveStats": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [679, 273, 147, 46], "expected": "^PERFECT$"},
+            {"recognition": "OCR", "roi": [679, 433, 109, 40], "expected": "^MISS$"},
+            "PlayResultScore"
+        ]
+    },
+    "DailyLiveNext": {"recognition": "OCR", "roi": [951, 614, 232, 67], "expected": "^下一步$"},
+    "DailyLiveRewardNext": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [105, 421, 133, 45], "expected": "^演出报酬$"},
+            "DailyLiveNext"
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 3
+    },
+    "DailyLiveStatsNext": {
+        "recognition": "And", "all_of": ["DailyLiveStats", "DailyLiveNext"],
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 2
+    },
+    "DailyLiveExpNext": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [114, 94, 177, 44], "expected": "^等级\\s*EXP$"}, "DailyLiveNext"
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 2
+    },
+    "DailyLivePointsOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [101, 290, 186, 52], "expected": "^获得活动点数$"},
+            {"recognition": "OCR", "roi": [951, 614, 232, 67], "expected": "^确定$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 850, "max_hit": 2
+    },
+    "DailyLiveRewardOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [363, 129, 310, 47], "expected": "^(每日演出报酬完成[！!]?|获得报酬|达成报酬)$"},
+            {"recognition": "OCR", "roi": [522, 510, 232, 66], "expected": "^确定$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 600, "max_hit": 8
+    },
+    "DailyLiveRewardList": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [195, 48, 530, 48], "expected": "达成报酬一览$"},
+            {"recognition": "OCR", "roi": [528, 603, 228, 47], "expected": "^关闭$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 600, "max_hit": 2
+    },
+    "DailyLiveLargeRewardOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [372, 81, 165, 41], "expected": "^获得报酬$"},
+            {"recognition": "OCR", "roi": [514, 500, 243, 43], "expected": "^获得了报酬[！!]?$"},
+            {"recognition": "OCR", "roi": [526, 575, 230, 56], "expected": "^OK$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 4
+    },
+    "DailyLiveStory": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [526, 54, 102, 37], "expected": "^跳过$"},
+            {"recognition": "OCR", "roi": [1013, 56, 113, 36], "expected": "^记录$"}
+        ],
+        "action": "Click", "max_hit": 1
+    },
+    "DailyLiveStoryMenu": {
+        "recognition": "TemplateMatch", "template": "common/reader/menu.png",
+        "roi": [1090, 12, 183, 99], "threshold": 0.86, "action": "Click", "max_hit": 1
+    },
+    "DailyLiveStoryConfirm": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [411, 280, 475, 107], "expected": "^确定跳过这个故事吗[？?]?$"},
+            {"recognition": "OCR", "roi": [658, 422, 215, 59], "expected": "^(跳过|确定)$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 800, "max_hit": 1
+    },
+    "DailyLiveHome": {
+        "recognition": "TemplateMatch", "template": "live/button/live_home.png",
+        "threshold": 0.9, "action": "Click", "post_delay": 850, "max_hit": 2
+    }
+}

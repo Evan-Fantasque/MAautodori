@@ -21,14 +21,9 @@
   "get_song_name": {
     "recognition": "Custom",
     "custom_recognition": "SongRecognition",
+    "custom_recognition_param": {"ocr_node": "PlaySelectSongTitle"},
     "action": "Custom",
     "custom_action": "SaveSong",
-    "roi": [
-      200,
-      330,
-      370,
-      30
-    ],
     "next": [
       "click_confirm_on_song_select"
     ],
@@ -114,7 +109,17 @@
       "[JumpBack]login_expired",
       "[JumpBack]connect_failed"
     ],
-    "timeout": 500000
+    "timeout": 500000,
+    "on_error": [
+      "PlayAbortCheck"
+    ]
+  },
+  "PlayAbortCheck": {
+    "post_delay": 0,
+    "next": [
+      "live_failed",
+      "stop"
+    ]
   },
   "live_failed": {
     "recognition": "OCR",

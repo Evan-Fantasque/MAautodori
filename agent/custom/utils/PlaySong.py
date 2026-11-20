@@ -1,10 +1,10 @@
 import logging
 import time
-import cv2
 import numpy as np
+from maa.context import Context
 import agent.custom.utils.StateCore as StateCore
-from agent.custom.utils.util import get_color_eval_in_range, get_runtime_info
-from agent.deploy.deploy import get_main_py_path
+from agent.custom.utils.NativeTouch import play_native_actions
+from agent.custom.utils.util import get_runtime_info
 
 logging.basicConfig(level=logging.INFO)
 
@@ -14,27 +14,29 @@ CMD_SLICE_SIZE = 100
 STABLE_THRESHOLD = 3
 CONSECUTIVE_FRAMES_NEEDED = 300
 FREEZE_SLEEP_TIME = 0.005
-CONFIDENCE_THRESHOLD_PLAY = 0.9
-CONFIDENCE_THRESHOLD_FAILURE = 0.8
-
-def get_scaled_template(player_inst, template_path):
-    template = cv2.imread(str(template_path), 0)
-    if template is None:
-        return None
-    runtime_h, runtime_w, _ = player_inst.ipc_capture_display().shape
-    scale_factor = runtime_w / 1920
-    if np.isclose(scale_factor, 1.0):
-        return template
-    original_h, original_w = template.shape[:2]
-    new_w = int(original_w * scale_factor)
-    new_h = int(original_h * scale_factor)
-    if new_w < 1 or new_h < 1:
-        return template
-    resized_template = cv2.resize(template, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    return resized_template
 
 
-def monitor_failure_thread(state: StateCore.MAautodoriState, stop_event, playback_started_event):
+def match_play_screen(context: Context, controller, node: str) -> bool:
+    image = controller.post_screencap().wait().get()
+    if image is None or image.size == 0:
+        return False
+    result = context.run_recognition(node, image)
+    return result is not None and result.hit
+
+
+def confirm_native_failure(context, controller, state):
+    try:
+        failed = match_play_screen(context, controller, "PlayFailureVisible")
+    except Exception:
+        logging.warning("失败画面检查异常，继续演奏。", exc_info=True)
+        return False
+    if failed:
+        state.playback_interrupted = True
+        logging.warning("Detected 'Live Failed' screen.")
+    return failed
+
+
+def monitor_failure_thread(context, controller, state, stop_event, playback_started_event, rpc_lock):
     """
     A background monitoring thread.
     It waits for the playback start signal, then continuously monitors for the "Live Failed" screen through image matching.
@@ -48,36 +50,24 @@ def monitor_failure_thread(state: StateCore.MAautodoriState, stop_event, playbac
             logging.warning("Timeout waiting for playback start signal, monitor thread exiting.")
             stop_event.set()
             return
+        if stop_event.is_set():
+            return
 
         logging.info("Received playback start signal, starting screen monitoring.")
 
-        base_path = get_main_py_path().parent.parent
-        fail_template_path = base_path / "assets/resource/image/live/live_failed.png"
-        if not fail_template_path.exists():
-            logging.error(
-                f"Live Failed template image not found: {fail_template_path}, monitor thread cannot work.")
-            stop_event.set()
-            return
-
-        template = get_scaled_template(state.player, fail_template_path)
-
         while not stop_event.is_set():
-            screen_bgr = state.player.ipc_capture_display()
-            if screen_bgr is None:
-                time.sleep(1)
-                continue
-
-            screen_gray = cv2.cvtColor(screen_bgr, cv2.COLOR_BGR2GRAY)
-            result = cv2.matchTemplate(screen_gray, template, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, _ = cv2.minMaxLoc(result)
-
-            if max_val >= CONFIDENCE_THRESHOLD_FAILURE:
-                logging.error(f"Detected 'Live Failed' screen (match: {max_val:.2f})! Sending stop signal!")
+            with rpc_lock:
+                if context.tasker.stopping:
+                    stop_event.set()
+                    break
+                failed = match_play_screen(context, controller, "PlayFailureVisible")
+            if failed:
+                logging.warning("Detected 'Live Failed' screen.")
                 state.playback_interrupted = True
                 stop_event.set()
                 break
 
-            time.sleep(1)
+            stop_event.wait(1)
 
     except Exception as e:
         logging.error(f"Monitor thread encountered unexpected error: {e}", exc_info=True)
@@ -85,7 +75,7 @@ def monitor_failure_thread(state: StateCore.MAautodoriState, stop_event, playbac
     finally:
         logging.info("Monitor thread terminated.")
 
-def play_song(state: StateCore.MAautodoriState, stop_event, playback_started_event):
+def play_song(context: Context, controller, state, stop_event, playback_started_event, rpc_lock, *, skip_late=False) -> bool:
 
     logging.info("Start play")
     state.clear_cmd_log()
@@ -117,46 +107,49 @@ def play_song(state: StateCore.MAautodoriState, stop_event, playback_started_eve
 
     logging.info("Waiting for game to load, detecting pause button.")
 
-    base_path = get_main_py_path().parent.parent
-    template_path = base_path / "assets/resource/image/live/button/pause.png"
-    template = get_scaled_template(state.player, template_path)
-    if template is None:
-        logging.error("Failed to load pause button template")
-        return
+    native = state.current_touch_backend == "maafw"
 
-    pause_button_found = False
-    wait_start_time = time.time()
+    def is_stopping():
+        return context.tasker.stopping
+
+    wait_deadline = time.monotonic() + 30
     playback_started_event.set()
 
-    while not pause_button_found:
-        wait_timeout = 30
-        wait_current_time = time.time()
-        if wait_current_time - wait_start_time > wait_timeout:
-            logging.error(f"Waiting for pause button timeout ({wait_current_time - wait_start_time}s), aborting.")
-            return
-        if check_exit_status(stop_event):
-            return
-
-        screen = state.player.ipc_capture_display()
-        height, width, _ = screen.shape
-        roi_screen = screen[0:int(height * 0.15), width - int(height * 0.15):width]
-        gray_roi = cv2.cvtColor(roi_screen, cv2.COLOR_BGR2GRAY)
-        result = cv2.matchTemplate(gray_roi, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, _ = cv2.minMaxLoc(result)
-
-        logging.debug(f"Waiting for pause button, match confidence: {max_val:.2f}")
-        if max_val >= CONFIDENCE_THRESHOLD_PLAY:
+    while True:
+        if check_exit_status(stop_event) or (native and is_stopping()):
+            return False
+        with rpc_lock:
+            pause_visible = match_play_screen(context, controller, "PlayPauseReady")
+        if pause_visible:
             logging.info("Pause button detected, waiting for screen frozen.")
-            pause_button_found = True
-        else:
-            time.sleep(0.5)
+            break
+        if time.monotonic() >= wait_deadline:
+            logging.error("Waiting for pause button timed out.")
+            return False
+        stop_event.wait(0.5)
 
+    if native:
+        if not wait_native_first_note(
+            controller, state.current_chart, stop_event, rpc_lock, is_stopping=is_stopping
+        ):
+            return False
+
+        def check_failure():
+            return confirm_native_failure(context, controller, state)
+
+        complete = play_native_actions(
+            controller, state.current_chart.actions, stop_event, rpc_lock, skip_late=skip_late,
+            is_stopping=is_stopping, check_failure=check_failure,
+        )
+        return (
+            complete and not stop_event.wait(2) and not is_stopping() and not check_failure()
+        )
     if not wait_first_note(state, stop_event):
-        return
+        return False
 
     while True:
         if check_exit_status(stop_event):
-            return
+            return False
 
         state.current_chart.command_builder.publish(state.mnt, block=False)
         wait_time = _get_wait_time()
@@ -173,8 +166,84 @@ def play_song(state: StateCore.MAautodoriState, stop_event, playback_started_eve
         else:
             break
 
-    time.sleep(2)
+    if stop_event.wait(2):
+        return False
     logging.info("Playback finished.")
+    return True
+
+
+def wait_native_first_note(controller, chart, stop_event, rpc_lock, *, is_stopping=None):
+    first = next((action for action in chart.actions if action["type"] == "down"), None)
+    if first is None:
+        return False
+
+    width, height = chart.screen_resolution
+    positions = [action["pos"] for action in chart.actions
+                 if action["type"] == "down" and action["time"] == first["time"]]
+    judge_y = round(first["pos"][1])
+    upper_y, lower_y = judge_y - round(40 * height / 720), judge_y - round(14 * height / 720)
+    radius = round(60 * width / 1280)
+    deadline = time.monotonic() + 20
+    line_since = None
+    baseline = None
+    crossed_upper = {}
+    armed = {}
+    next_stop_poll = 0.0
+
+    while not stop_event.is_set() and time.monotonic() < deadline:
+        now = time.monotonic()
+        if is_stopping is not None and now >= next_stop_poll:
+            if is_stopping():
+                return False
+            next_stop_poll = now + 0.25
+        with rpc_lock:
+            screen = controller.post_screencap().wait().get()
+        now = time.monotonic()
+        if screen is None or screen.shape[:2] != (height, width):
+            stop_event.wait(FREEZE_SLEEP_TIME)
+            continue
+
+        # The opening fade changes the entire lane before the judgement line is fully drawn.
+        line = screen[judge_y - 2 : judge_y + 3, width // 10 : -width // 10].astype(np.int16)
+        blue, green, red = (line[:, :, channel] for channel in range(3))
+        cyan = (blue > 133) & (green > 133) & (np.minimum(blue, green) - red > 25)
+        if np.count_nonzero(cyan) < 0.7 * width:
+            line_since = baseline = None
+            crossed_upper.clear()
+            armed.clear()
+        elif line_since is None:
+            line_since = now
+        elif now - line_since >= 0.25:
+            strips = []
+            for x, _ in positions:
+                left, right = max(0, round(x) - radius), min(width, round(x) + radius)
+                strips.append(tuple(screen[y - 2 : y + 3, left:right].astype(np.int16)
+                                    for y in (upper_y, lower_y)))
+            if baseline is None:
+                baseline = strips
+            else:
+                for i, (top, bottom) in enumerate(strips):
+                    ref_top, ref_bottom = baseline[i]
+                    upper = np.count_nonzero(np.max(np.abs(top - ref_top), axis=2) > 65) > 25
+                    lower = np.count_nonzero(np.max(np.abs(bottom - ref_bottom), axis=2) > 65) > 25
+                    if not upper and not lower:
+                        armed[i] = True
+                        crossed_upper.pop(i, None)
+                    if upper and not lower and armed.get(i) and i not in crossed_upper:
+                        crossed_upper[i] = now
+                    if lower and i in crossed_upper:
+                        crossing = now - crossed_upper.pop(i)
+                        armed[i] = False
+                        if 0 < crossing <= 0.18:
+                            # The lower strip is just above the line and detects the leading edge.
+                            delay = min(0.035, max(0.012, crossing * 0.7 + 0.005))
+                            logging.info("First note crossed both lane strips; starting native timing.")
+                            return not stop_event.wait(delay)
+
+        time.sleep(FREEZE_SLEEP_TIME)
+
+    logging.warning("未确认首音符经过判定线，停止本曲。")
+    return False
 
 
 def wait_first_note(state: StateCore.MAautodoriState, stop_event):
@@ -183,11 +252,11 @@ def wait_first_note(state: StateCore.MAautodoriState, stop_event):
     info = get_runtime_info(state.player.resolution)["wait_first"]
     from_row, to_row = info["from"], info["to"]
     freezed = False
-    playback_start_time = time.time()
+    playback_start_time = time.monotonic()
 
     while True:
         playback_timeout = 500
-        playback_current_time = time.time()
+        playback_current_time = time.monotonic()
         if playback_current_time - playback_start_time > playback_timeout:
             logging.error(f"Playback timeout ({playback_current_time - playback_start_time}s), aborting.")
             return False
@@ -196,10 +265,13 @@ def wait_first_note(state: StateCore.MAautodoriState, stop_event):
 
         try:
             screen = state.player.ipc_capture_display()
-            cur_color, _ = get_color_eval_in_range(screen, from_row, to_row)
+            if screen is None or not screen.size:
+                stop_event.wait(FREEZE_SLEEP_TIME)
+                continue
+            cur_color = screen[from_row : to_row + 1].mean(axis=(0, 1))
 
             if last_color is not None:
-                change_score = np.sum(np.abs(cur_color[:3].astype(int) - last_color[:3].astype(int)))
+                change_score = abs(cur_color[:3].astype(int) - last_color[:3].astype(int)).sum()
 
                 if change_score > STABLE_THRESHOLD:
                     if freezed:

@@ -1,0 +1,433 @@
+{
+    "SoloPrepare": {
+        "timeout": 15000,
+        "next": [
+            "SoloOpenLive"
+        ]
+    },
+    "SoloOpenLive": {
+        "recognition": "And",
+        "all_of": [
+            "StartupHomeReady"
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloModeMenu"
+        ],
+        "target": [
+            1120,
+            610,
+            105,
+            73
+        ]
+    },
+    "SoloModeMenu": {
+        "recognition": "OCR",
+        "roi": [
+            110,
+            47,
+            335,
+            46
+        ],
+        "expected": "^选择演出$",
+        "timeout": 15000,
+        "next": [
+            "SoloEnterFree"
+        ]
+    },
+    "SoloEnterFree": {
+        "recognition": "OCR",
+        "roi": [
+            711,
+            465,
+            185,
+            59
+        ],
+        "expected": "^自由演出$",
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloConfirmFreeSong"
+        ]
+    },
+    "SoloConfirmFreeSong": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    13,
+                    335,
+                    41
+                ],
+                "expected": "^自由演出$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    47,
+                    335,
+                    46
+                ],
+                "expected": "^选择乐曲$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    951,
+                    608,
+                    243,
+                    76
+                ],
+                "expected": "^确定$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloFreeReady"
+        ],
+        "box_index": 2
+    },
+    "SoloFreeReady": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    13,
+                    335,
+                    41
+                ],
+                "expected": "^自由演出$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    47,
+                    335,
+                    46
+                ],
+                "expected": "^选择乐队$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    1020,
+                    621,
+                    220,
+                    62
+                ],
+                "expected": "^演出开始$"
+            }
+        ]
+    },
+    "SoloEnterChallenge": {
+        "recognition": "OCR",
+        "roi": [
+            716,
+            295,
+            177,
+            45
+        ],
+        "expected": "^挑战演出$",
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloConfirmChallengeSong"
+        ]
+    },
+    "SoloConfirmChallengeSong": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    13,
+                    335,
+                    41
+                ],
+                "expected": "^挑战演出$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    47,
+                    335,
+                    46
+                ],
+                "expected": "^选择乐曲$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    951,
+                    608,
+                    243,
+                    76
+                ],
+                "expected": "^确定$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloChallengeReady"
+        ],
+        "box_index": 2
+    },
+    "SoloChallengeReady": {
+        "recognition": "OCR",
+        "roi": [
+            365,
+            49,
+            521,
+            55
+        ],
+        "expected": "^选择要消费的挑战点数$",
+        "focus": {
+            "Node.Action.Succeeded": "已到挑战点数确认，请手动决定是否消耗。"
+        }
+    },
+    "SoloEnterStage": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    885,
+                    614,
+                    111,
+                    36
+                ],
+                "expected": "^舞台$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    885,
+                    641,
+                    111,
+                    40
+                ],
+                "expected": "^挑战$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 90000,
+        "next": [
+            "SoloMainStageCatalog",
+            "[JumpBack]SoloSwitchMainStage"
+        ],
+        "target": [
+            885,
+            572,
+            95,
+            100
+        ]
+    },
+    "SoloStageCatalog": {
+        "recognition": "OCR",
+        "roi": [
+            110,
+            47,
+            335,
+            46
+        ],
+        "expected": "^舞台挑战选择$"
+    },
+    "SoloMainStageLabel": {
+        "recognition": "OCR",
+        "roi": [
+            0,
+            106,
+            102,
+            55
+        ],
+        "expected": "^主舞台$"
+    },
+    "SoloSpecialStageLabel": {
+        "recognition": "OCR",
+        "roi": [
+            0,
+            106,
+            102,
+            55
+        ],
+        "expected": "^特[别別]舞台$"
+    },
+    "SoloMainStageCatalog": {
+        "recognition": "And",
+        "all_of": [
+            "SoloStageCatalog",
+            "SoloMainStageLabel",
+            {
+                "recognition": "OCR",
+                "roi": [
+                    951,
+                    608,
+                    243,
+                    76
+                ],
+                "expected": "^确定$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloConfirmStage"
+        ],
+        "box_index": 2
+    },
+    "SoloSpecialStageCatalog": {
+        "recognition": "And",
+        "all_of": [
+            "SoloStageCatalog",
+            "SoloSpecialStageLabel",
+            {
+                "recognition": "OCR",
+                "roi": [
+                    951,
+                    608,
+                    243,
+                    76
+                ],
+                "expected": "^确定$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloConfirmStage"
+        ],
+        "box_index": 2
+    },
+    "SoloSwitchMainStage": {
+        "recognition": "And",
+        "all_of": [
+            "SoloStageCatalog",
+            "SoloSpecialStageLabel"
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [],
+        "target": [
+            320,
+            119,
+            65,
+            55
+        ],
+        "max_hit": 1
+    },
+    "SoloSwitchSpecialStage": {
+        "recognition": "And",
+        "all_of": [
+            "SoloStageCatalog",
+            "SoloMainStageLabel"
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [],
+        "target": [
+            320,
+            119,
+            65,
+            55
+        ],
+        "max_hit": 1
+    },
+    "SoloConfirmStage": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    13,
+                    335,
+                    41
+                ],
+                "expected": "^舞台挑战$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    47,
+                    335,
+                    46
+                ],
+                "expected": "^舞台选择$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    951,
+                    608,
+                    243,
+                    76
+                ],
+                "expected": "^确定$"
+            }
+        ],
+        "action": "Click",
+        "post_delay": 700,
+        "timeout": 30000,
+        "next": [
+            "SoloStageReady"
+        ],
+        "box_index": 2
+    },
+    "SoloStageReady": {
+        "recognition": "And",
+        "all_of": [
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    13,
+                    335,
+                    41
+                ],
+                "expected": "^舞台挑战$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    110,
+                    47,
+                    335,
+                    46
+                ],
+                "expected": "^乐队确认$"
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    1020,
+                    621,
+                    220,
+                    62
+                ],
+                "expected": "^演出开始$"
+            }
+        ]
+    }
+}

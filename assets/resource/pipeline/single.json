@@ -1,58 +1,46 @@
 {
   "ui_simplified_entry": {
+    "next": ["SingleFreeBand"],
+    "timeout": 5000,
+    "on_error": ["stop"]
+  },
+  "SingleFreeBand": {
+    "recognition": "And",
+    "all_of": [
+      "SoloFreeReady",
+      "PlayBandDifficulty",
+      {"recognition": "OCR", "roi": [802, 563, 183, 40], "expected": "^自动演出\\s*关$"}
+    ],
+    "next": ["SingleReadSong"],
+    "timeout": 5000,
+    "on_error": ["stop"]
+  },
+  "SingleReadSong": {
     "recognition": "Custom",
     "custom_recognition": "SongRecognition",
+    "custom_recognition_param": {"ocr_node": "PlayBandSongTitle"},
     "action": "Custom",
     "custom_action": "SaveSong",
-    "roi": [
-      220,
-      545,
-      570,
-      30
-    ],
-    "next": [
-      "startlivesingle",
-      "[JumpBack]liveagain",
-      "[JumpBack]live_home_button",
-      "[JumpBack]next_button",
-      "[JumpBack]close_button",
-      "[JumpBack]ok_button",
-      "[JumpBack]confirm_button",
-      "[JumpBack]reader_menu",
-      "[JumpBack]read_after"
-    ],
-    "timeout": 15000,
-    "on_error": [
-      "stop"
-    ]
+    "custom_action_param": {"touch_backend": "maafw"},
+    "next": ["startlivesingle"],
+    "timeout": 5000,
+    "on_error": ["stop"]
   },
   "startlivesingle": {
+    "recognition": "And",
+    "all_of": [
+      "SingleFreeBand",
+      {"recognition": "OCR", "roi": [1020, 621, 220, 62], "expected": "^演出开始$"}
+    ],
+    "box_index": 1,
     "action": "Click",
-    "next": [
-      "playsongsingle",
-      "[JumpBack]liveagain",
-      "[JumpBack]live_home_button",
-      "[JumpBack]next_button",
-      "[JumpBack]close_button",
-      "[JumpBack]ok_button",
-      "[JumpBack]confirm_button",
-      "[JumpBack]reader_menu",
-      "[JumpBack]read_after"
-    ],
-    "on_error": [
-      "stop"
-    ],
-    "recognition": "TemplateMatch",
-    "template": "live/button/live_medley.png",
-    "threshold": 0.5
+    "next": ["playsongsingle"],
+    "timeout": 5000,
+    "on_error": ["stop"]
   },
   "playsongsingle": {
     "action": "Custom",
     "custom_action": "Play",
-    "next": [
-      "stop"
-    ],
-    "timeout": 500000,
-    "post_delay": 10000
+    "post_delay": 0
   }
 }

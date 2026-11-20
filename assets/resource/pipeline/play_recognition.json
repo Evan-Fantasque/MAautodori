@@ -1,0 +1,52 @@
+{
+    "PlayPauseReady": {
+        "recognition": "TemplateMatch",
+        "template": "live/button/pause.png",
+        "roi": [1172, 0, 108, 108],
+        "threshold": 0.9
+    },
+    "PlayFailureVisible": {
+        "recognition": "TemplateMatch",
+        "template": "live/live_failed.png",
+        "threshold": 0.8
+    },
+    "PlayCheckBoost": {
+        "next": ["PlayBoostEnough", "PlayBoostLow"],
+        "timeout": 5000,
+        "on_error": ["PlayBoostUnreadable"]
+    },
+    "PlayBoostEnough": {
+        "recognition": "OCR",
+        "roi": [979, 30, 61, 20],
+        "only_rec": true,
+        "expected": "^\\s*(\\d+)\\s*[/／]\\s*\\d+\\s*$",
+        "condition": "$1 >= 1",
+        "next": ["startlive"]
+    },
+    "PlayBoostLow": {
+        "recognition": "OCR",
+        "roi": [979, 30, 61, 20],
+        "only_rec": true,
+        "expected": "^\\s*(\\d+)\\s*[/／]\\s*\\d+\\s*$",
+        "condition": "$1 < 1",
+        "focus": {"Node.Action.Succeeded": "火焰不足，关闭游戏并停止。"},
+        "next": ["close_app"]
+    },
+    "PlayBoostUnreadable": {
+        "action": "StopTask",
+        "focus": {"Node.Action.Starting": "无法确认火焰数量，本次演出未开始。"}
+    },
+    "PlaySelectSongTitle": {"recognition": "OCR", "roi": [200, 326, 370, 34]},
+    "PlayBandSongTitle": {"recognition": "OCR", "roi": [210, 531, 590, 45]},
+    "PlayBandDifficulty": {"recognition": "OCR", "roi": [107, 553, 110, 45], "expected": "^(EASY|NORMAL|HARD|EXPERT|SPECIAL)$"},
+    "PlaySongTitle": {"recognition": "OCR", "only_rec": true, "expected": "\\S"},
+    "PlayResultScore":    {"recognition": "OCR", "only_rec": true, "roi": [1028, 192, 144, 35], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultMaxcombo": {"recognition": "OCR", "only_rec": true, "roi": [1009, 391,  91, 28], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultPerfect":  {"recognition": "OCR", "only_rec": true, "roi": [ 829, 282,  90, 28], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultGreat":    {"recognition": "OCR", "only_rec": true, "roi": [ 828, 322,  91, 27], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultGood":     {"recognition": "OCR", "only_rec": true, "roi": [ 829, 363,  91, 27], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultBad":      {"recognition": "OCR", "only_rec": true, "roi": [ 829, 401,  90, 27], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultMiss":     {"recognition": "OCR", "only_rec": true, "roi": [ 830, 438,  91, 28], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultFast":     {"recognition": "OCR", "only_rec": true, "roi": [1088, 283,  90, 27], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"},
+    "PlayResultSlow":     {"recognition": "OCR", "only_rec": true, "roi": [1088, 323,  91, 28], "replace": [["[,，\\s]", ""]], "expected": "^[0-9]+$"}
+}
