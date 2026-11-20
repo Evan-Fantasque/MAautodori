@@ -11,7 +11,7 @@
     "welcome": "首次使用！欢迎使用 MAautodori!",
     // 填写项目地址和版本号可实现自动更新功能
     "github": "https://github.com/Evan-Fantasque/MAautodori",
-    "version": "1.0.0",
+    "version": "v1.0.0",
     // Mirror酱为第三方分发服务，新项目默认关闭
     // 若有需要请联系 Mirror酱 开通，直接自行开启是无法使用的
     // "mirrorchyan_rid": "MaaXXX",
@@ -44,6 +44,17 @@
             "../agent/main.py"
         ]
     },
+    "preset": [
+        {
+            "name": "启动模拟器到一键每日",
+            "description": "依次进入游戏主菜单并执行一键每日。首次请配置 MuMu 前置程序，并保存要连接的模拟器设备。",
+            "controller": ["ADB"],
+            "task": [
+                {"name": "启动游戏到主菜单", "enabled": true},
+                {"name": "每日清火＋免费三抽", "enabled": true}
+            ]
+        }
+    ],
     "task": [
         {
             "name": "启动游戏到主菜单",
@@ -61,26 +72,32 @@
         {
             "name": "每日清火＋免费三抽",
             "entry": "DailyClear",
-            "option": ["清火设置"]
+            "description": "一键清火并领完每日免费演出招募。0 火且尚未满足演出条件时，补打一场 0 火自由演出。",
+            "option": ["清火设置", "难度", "常规用火", "优先10火"]
+        },
+        {
+            "name": "每日清火",
+            "entry": "DailyBurnBoost",
+            "description": "循环进行普通单人自由演出，读到 0 火后结束。",
+            "option": ["清火设置", "难度", "常规用火", "优先10火"]
+        },
+        {
+            "name": "每日免费招募",
+            "entry": "DailyFreeRecruit",
+            "description": "领完当天剩余的免费演出招募次数。需要先完成演出时停止。"
         },
         {
             "name": "自由演出（挖矿）",
+            "label": "自由演出（挖矿）（可靠性未验证）",
             "entry": "select_song",
             "option": ["检查火焰"]
         },
         {
             "name": "巡回演出",
+            "label": "巡回演出（可靠性未验证）",
             "entry": "MedleyEntry",
             "option": [],
             "pipeline_override": {}
-        },
-        {
-            "name": "测试任务",
-            "entry": "TestEntry"
-        },
-        {
-            "name": "测试任务1",
-            "entry": "TestEntry1"
         }
         //{
         //    "name": "活动任务自动打歌",
@@ -91,14 +108,103 @@
         "清火设置": {
             "type": "input",
             "inputs": [
-                {"name": "song", "label": "完整曲名", "default": "SAVIOR OF SONG", "verify": "^.*\\S.*$"},
-                {"name": "difficulty", "label": "难度", "default": "EXPERT", "verify": "^(EASY|NORMAL|HARD|EXPERT|SPECIAL)$"},
-                {"name": "regular", "label": "常规用火", "default": "3", "pipeline_type": "int", "verify": "^[123]$"},
-                {"name": "max", "label": "优先10火", "default": "开", "verify": "^(开|关)$"}
+                {"name": "song", "label": "完整曲名", "default": "SAVIOR OF SONG", "verify": "^.*\\S.*$"}
             ],
             "pipeline_override": {
-                "DailyClear": {"custom_action_param": {"title": "{song}", "difficulty": "{difficulty}", "regular": "{regular}", "max": "{max}"}}
+                "DailyClear": {"custom_action_param": {"title": "{song}", "recruit_after": true}},
+                "DailyBurnBoost": {"custom_action_param": {"title": "{song}", "recruit_after": false}}
             }
+        },
+        "难度": {
+            "type": "select",
+            "default_case": "EXPERT",
+            "cases": [
+                {
+                    "name": "EASY",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"difficulty": "EASY"}},
+                        "DailyBurnBoost": {"attach": {"difficulty": "EASY"}}
+                    }
+                },
+                {
+                    "name": "NORMAL",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"difficulty": "NORMAL"}},
+                        "DailyBurnBoost": {"attach": {"difficulty": "NORMAL"}}
+                    }
+                },
+                {
+                    "name": "HARD",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"difficulty": "HARD"}},
+                        "DailyBurnBoost": {"attach": {"difficulty": "HARD"}}
+                    }
+                },
+                {
+                    "name": "EXPERT",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"difficulty": "EXPERT"}},
+                        "DailyBurnBoost": {"attach": {"difficulty": "EXPERT"}}
+                    }
+                },
+                {
+                    "name": "SPECIAL",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"difficulty": "SPECIAL"}},
+                        "DailyBurnBoost": {"attach": {"difficulty": "SPECIAL"}}
+                    }
+                }
+            ]
+        },
+        "常规用火": {
+            "type": "select",
+            "default_case": "3",
+            "cases": [
+                {
+                    "name": "1",
+                    "label": "1 火",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"regular": 1}},
+                        "DailyBurnBoost": {"attach": {"regular": 1}}
+                    }
+                },
+                {
+                    "name": "2",
+                    "label": "2 火",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"regular": 2}},
+                        "DailyBurnBoost": {"attach": {"regular": 2}}
+                    }
+                },
+                {
+                    "name": "3",
+                    "label": "3 火",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"regular": 3}},
+                        "DailyBurnBoost": {"attach": {"regular": 3}}
+                    }
+                }
+            ]
+        },
+        "优先10火": {
+            "type": "switch",
+            "default_case": "Yes",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"prioritize_max": true}},
+                        "DailyBurnBoost": {"attach": {"prioritize_max": true}}
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "DailyClear": {"attach": {"prioritize_max": false}},
+                        "DailyBurnBoost": {"attach": {"prioritize_max": false}}
+                    }
+                }
+            ]
         },
         "检查火焰": {
             "type": "switch",
@@ -134,27 +240,6 @@
                     "pipeline_override": {
                         "SoloModeMenu": {"next": ["SoloEnterStage"]},
                         "SoloEnterStage": {"next": ["SoloSpecialStageCatalog", "[JumpBack]SoloSwitchSpecialStage"]}
-                    }
-                }
-            ]
-        },
-        "任务选项1": {
-            "type": "select",
-            "cases": [
-                {
-                    "name": "文本1",
-                    "pipeline_override": {
-                        "OcrTask": {
-                            "text": "文本1"
-                        }
-                    }
-                },
-                {
-                    "name": "文本2",
-                    "pipeline_override": {
-                        "OcrTask": {
-                            "text": "文本2"
-                        }
                     }
                 }
             ]

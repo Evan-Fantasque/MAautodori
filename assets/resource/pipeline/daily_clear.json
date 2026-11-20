@@ -1,10 +1,18 @@
 {
     "DailyClear": {
         "action": "Custom", "custom_action": "DailyClear",
-        "custom_action_param": {},
+        "custom_action_param": {"recruit_after": true},
         "focus": {
             "Node.Action.Failed": "每日清火提前停止，请查看日志和当前游戏画面。",
             "Node.Action.Succeeded": "火焰已清完，今日免费招募已完成。"
+        }
+    },
+    "DailyBurnBoost": {
+        "action": "Custom", "custom_action": "DailyClear",
+        "custom_action_param": {"recruit_after": false},
+        "focus": {
+            "Node.Action.Failed": "每日清火提前停止，请查看日志和当前游戏画面。",
+            "Node.Action.Succeeded": "火焰已清完。"
         }
     },
     "DailyLobby": {

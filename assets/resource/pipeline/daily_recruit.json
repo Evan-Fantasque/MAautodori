@@ -1,4 +1,11 @@
 {
+    "DailyFreeRecruit": {
+        "action": "Custom", "custom_action": "DailyFreeRecruit",
+        "focus": {
+            "Node.Action.Failed": "每日免费招募已停止，请检查游戏是否要求先完成演出。",
+            "Node.Action.Succeeded": "今日免费招募已完成。"
+        }
+    },
     "DailyRecruitOpen": {
         "next": ["DailyRecruitBanner", "[JumpBack]DailyRecruitFromHome", "[JumpBack]DailyRecruitSelectTab", "[JumpBack]DailyRecruitScroll"],
         "timeout": 45000

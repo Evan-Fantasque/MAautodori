@@ -128,7 +128,7 @@ def _return_after_live(context):
         raise RuntimeError("已结算，但未能返回自由演出入口")
 
 
-def _ready(context):
+def _ready(context, *, keep_recruit=False):
     image = capture(context)
     if recognize(context, "DailyLobby", image):
         return
@@ -136,7 +136,7 @@ def _ready(context):
         _return_after_live(context)
         return
     if recognize(context, "DailyRecruitList", image):
-        if reached(context, "DailyBackToHome", "StartupHomeReady"):
+        if keep_recruit or reached(context, "DailyBackToHome", "StartupHomeReady"):
             return
         raise RuntimeError("无法从招募页返回主菜单")
     if not reached(context, "start_app", "StartupHomeReady"):
@@ -144,48 +144,60 @@ def _ready(context):
 
 
 def _go_to_recruit(context):
-    if not reached(context, "DailyBackToHome", "StartupHomeReady"):
-        raise RuntimeError("未能返回主菜单，无法进入招募")
+    if not recognize(context, "DailyRecruitList", capture(context)):
+        if not reached(context, "DailyBackToHome", "StartupHomeReady"):
+            raise RuntimeError("未能返回主菜单，无法进入招募")
     return recruit(context)
+
+
+def _burn_boost(context, title, difficulty, regular, prioritize_max):
+    _ready(context)
+    completed = 0
+    previous = None
+    stalls = 0
+    while True:
+        if recognize(context, "FreeSongList", capture(context)):
+            _band(context, title, difficulty)
+        balance = _balance(context)
+        if not balance:
+            return completed
+        if previous is not None and balance >= previous:
+            stalls += 1
+            if stalls >= 2:
+                raise RuntimeError("连续两局后火焰未减少")
+        else:
+            stalls = 0
+        _band(context, title, difficulty)
+        balance = _balance(context)
+        if not balance:
+            return completed
+        preview = _set_boost(context, balance, regular, prioritize_max)
+        _play(context, title, difficulty, preview)
+        previous = balance
+        completed += 1
+        logger.info("已确认第 %d 场结算", completed)
+        _return_after_live(context)
 
 
 class DailyClear(CustomAction):
     def run(self, context, argv):
-        completed = 0
         try:
             raw = argv.custom_action_param
             config = raw if isinstance(raw, dict) else json.loads(raw or "{}")
-            title = config.get("title", "").strip()
-            difficulty = config.get("difficulty", "").strip().upper()
-            regular = int(config.get("regular", 3))
+            # Separate MXU options merge in attach without replacing custom action parameters.
+            node = context.get_node_data(argv.node_name) or {}
+            options = node.get("attach") or {}
+            title = config.get("title", "SAVIOR OF SONG").strip()
+            difficulty = options.get("difficulty", config.get("difficulty", "EXPERT")).strip().upper()
+            regular = int(options.get("regular", config.get("regular", 3)))
             max_option = config.get("max", "开")
             if not title or difficulty not in DIFFICULTIES or regular not in (1, 2, 3) or max_option not in ("开", "关"):
                 raise RuntimeError("请填写完整曲名、有效难度和 1～3 的常规档")
-            _ready(context)
-            previous = None
-            stalls = 0
-            while True:
-                if recognize(context, "FreeSongList", capture(context)):
-                    _band(context, title, difficulty)
-                balance = _balance(context)
-                if not balance:
-                    break
-                if previous is not None and balance >= previous:
-                    stalls += 1
-                    if stalls >= 2:
-                        raise RuntimeError("连续两局后火焰未减少")
-                else:
-                    stalls = 0
-                _band(context, title, difficulty)
-                balance = _balance(context)
-                if not balance:
-                    break
-                preview = _set_boost(context, balance, regular, max_option == "开")
-                _play(context, title, difficulty, preview)
-                previous = balance
-                completed += 1
-                logger.info("已确认第 %d 场结算", completed)
-                _return_after_live(context)
+            prioritize_max = options.get("prioritize_max", max_option == "开")
+            completed = _burn_boost(context, title, difficulty, regular, prioritize_max is True)
+            if not config.get("recruit_after", True):
+                logger.info("清火完成，本次完成 %d 场", completed)
+                return self.RunResult(success=True)
             status = _go_to_recruit(context)
             if status == "locked" and not completed:
                 _ready(context)
@@ -201,5 +213,18 @@ class DailyClear(CustomAction):
             logger.info("清火和招募完成，本次完成 %d 场", completed)
             return self.RunResult(success=True)
         except Exception:
-            logger.exception("每日任务停止，已确认 %d 场结算", completed)
+            logger.exception("每日清火流程停止")
+            return self.RunResult(success=False)
+
+
+class DailyFreeRecruit(CustomAction):
+    def run(self, context, argv):
+        try:
+            _ready(context, keep_recruit=True)
+            status = _go_to_recruit(context)
+            if status == "locked":
+                raise RuntimeError("今日免费招募需要先完成一次演出")
+            return self.RunResult(success=status == "done")
+        except Exception:
+            logger.exception("每日免费招募停止")
             return self.RunResult(success=False)
