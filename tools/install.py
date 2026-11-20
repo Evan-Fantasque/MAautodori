@@ -21,7 +21,7 @@ version = len(sys.argv) > 1 and sys.argv[1] or "v0.0.1"
 
 # the first parameter is self name
 if sys.argv.__len__() < 4:
-    print("Usage: python install.py <version> <os> <arch>")
+    print("Usage: python install.py <version> <os> <arch> [--release]")
     print("Example: python install.py v1.0.0 win x86_64")
     sys.exit(1)
 
@@ -92,6 +92,8 @@ def install_resource():
     with open(install_path / "interface.json", "r", encoding="utf-8") as f:
         interface = jsonc.load(f)
 
+    if "--release" in sys.argv[4:] and interface["version"] != version:
+        raise ValueError(f"Release tag {version} does not match assets/interface.json.")
     interface["version"] = version
     if os_name == "win":
         interface["agent"]["child_exec"] = "./.venv/Scripts/python.exe"

@@ -5,6 +5,9 @@ env:
   MAAFW_VERSION: "v6.0.0-beta.3"
   MXU_VERSION: "v2.11.2"
 
+permissions:
+  contents: read
+
 on:
   push:
     tags:
@@ -37,33 +40,29 @@ jobs:
           fetch-depth: 0
       - id: set_tag
         run: |
-          # 检查标签格式
-          is_release=${{ startsWith(github.ref, 'refs/tags/v') }}
-          tag=$(git describe --tags --match "v*" ${{ github.ref }} || true)
-          if [[ $tag != v* ]]; then
-            tag=$(curl -sX GET "https://api.github.com/repos/${{ github.repository }}/releases/latest" --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' | awk '/tag_name/{print $4}' FS='["]')
-            if [[ $tag != v* ]]; then
-              tag="v0.0.0"
+          is_release=false
+          if [[ "$GITHUB_REF" == refs/tags/v* && "$GITHUB_EVENT_NAME" == push ]]; then
+            tag="$GITHUB_REF_NAME"
+            is_release=true
+            if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+([.-][A-Za-z0-9]+)*)?$ ]]; then
+              echo "::error::Invalid release tag: $tag"
+              exit 1
             fi
-            tag=$(date "+$tag-%y%m%d-$(git rev-parse --short HEAD)")
+          else
+            base=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || echo v0.0.0)
+            tag="${base%%-*}-ci.$(git rev-parse --short HEAD)"
           fi
 
-          if ! $($is_release) ; then
-            prefix=${tag%-*-*}
-            suffix=${tag#$prefix-}
-            tag="$prefix-ci.$suffix"
-          fi
-
-          # 检查是否为预发布版本
           is_prerelease=false
-          if [[ $tag =~ .*alpha.* || $tag =~ .*beta.* || $tag =~ .*rc.* || $tag =~ .*dev.* || $tag =~ .*-ci.* ]]; then
+          if [[ "$tag" == *-* ]]; then
             is_prerelease=true
-            echo "This is a pre-release version"
           fi
 
-          echo tag=$tag | tee -a $GITHUB_OUTPUT
-          echo is_release=$is_release | tee -a $GITHUB_OUTPUT
-          echo is_prerelease=$is_prerelease | tee -a $GITHUB_OUTPUT
+          {
+            printf 'tag=%s\n' "$tag"
+            printf 'is_release=%s\n' "$is_release"
+            printf 'is_prerelease=%s\n' "$is_prerelease"
+          } >> "$GITHUB_OUTPUT"
     outputs:
       tag: ${{ steps.set_tag.outputs.tag }}
       is_release: ${{ steps.set_tag.outputs.is_release }}
@@ -101,19 +100,65 @@ jobs:
           out-file-path: "deps/mxu"
           extract: true
 
+      - name: Download legacy Minitouch
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: EvATive7/minitouch
+          fileName: minitouch.zip
+          tag: v2.0.0
+          out-file-path: deps/legacy-touch
+
       - name: Install
+        env:
+          VERSION: ${{ needs.meta.outputs.tag }}
+          IS_RELEASE: ${{ needs.meta.outputs.is_release }}
         run: |
+          cd deps/legacy-touch
+          echo '4bed7a1628bc1272f1835bc4f1522868e6956846c8120a8d76a0ee0aa389e549  minitouch.zip' | sha256sum --check
+          unzip -q minitouch.zip
+          cd ../..
+          mv deps/legacy-touch/minitouch deps/minitouch_EvATive7
+          curl --fail --silent --show-error --location --retry 3 \
+            https://raw.githubusercontent.com/EvATive7/minitouch/4c22b45f1b7b5bfa47c6f96535d3e0d3751b3d34/LICENSE \
+            --output deps/minitouch_EvATive7/LICENSE
           python -m pip install -r tools/requirements.txt
-          python tools/install.py '${{ needs.meta.outputs.tag }}' '${{ matrix.os }}' '${{ matrix.arch }}'
+          args=("$VERSION" '${{ matrix.os }}' '${{ matrix.arch }}')
+          if [[ "$IS_RELEASE" == true ]]; then
+            args+=(--release)
+          fi
+          python tools/install.py "${args[@]}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: MAautodori-${{ matrix.os }}-${{ matrix.arch }}
           path: "install"
 
+  portable:
+    needs: [meta, install]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.4"
+          architecture: x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: MAautodori-win-x86_64
+          path: install
+      - name: Build and verify portable ZIP
+        run: python tools/package_portable.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-win-x64
+          path: build/portable/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+          if-no-files-found: error
+          compression-level: 0
+
   changelog:
     name: Generate changelog
     needs: meta
+    if: ${{ needs.meta.outputs.is_release == 'true' }}
     runs-on: ubuntu-latest
     outputs:
       release_body: ${{ steps.git-cliff.outputs.content }}
@@ -139,24 +184,28 @@ jobs:
 
   release:
     if: ${{ needs.meta.outputs.is_release == 'true' }}
-    needs: [meta, install, changelog]
+    needs: [meta, portable, changelog]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: portable-win-x64
           path: assets
 
-      - run: |
-          cd assets
-          for f in *; do
-            (cd $f && zip -r ../$f-${{ needs.meta.outputs.tag }}.zip .)
-          done
-          
       - uses: softprops/action-gh-release@v2
         with:
-          files: assets/*
+          name: MAautodori ${{ needs.meta.outputs.tag }}
+          files: assets/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+          fail_on_unmatched_files: true
           tag_name: ${{ needs.meta.outputs.tag }}
-          body: ${{ needs.changelog.outputs.release_body }}
+          body: |
+            下载 Windows x64 便携 ZIP，完整解压后打开 `mxu.exe`。包内含 Python、Agent 依赖、OCR 和触控组件。MuMu 和游戏请自行安装，并在游戏中完成登录。[配置与使用说明](https://github.com/${{ github.repository }}/blob/${{ needs.meta.outputs.tag }}/README.md)
+
+            本项目为第三方工具。使用本工具产生的后果由使用者自行承担。
+
+            ${{ needs.changelog.outputs.release_body }}
           draft: false
           prerelease: ${{ needs.meta.outputs.is_prerelease == 'true' }}
 

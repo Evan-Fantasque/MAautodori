@@ -54,9 +54,11 @@ python -m venv install/.venv
 .\install\mxu.exe
 ```
 
-GitHub Actions 也会生成开发包。解压 Actions 产物后，在包根目录创建 `.venv` 并安装 `requirements.txt`，再打开 `mxu.exe`。[打包工作流](.github/workflows/install.yml)
+GitHub Actions 会构建并验证包含 Python 的 Windows x64 便携包。可在 Actions 的 `portable-win-x64` 产物中下载测试包；用于开发的 `MAautodori-win-x86_64` 产物需要在包根目录创建 `.venv` 并安装 `requirements.txt`。[打包工作流](.github/workflows/install.yml)
 
-发布时，按改动幅度选择 `v主版本.次版本.修订号`，把它传给 `tools/install.py`，并用于压缩包文件名。窗口标题显示项目名称和打包版本号。
+发布时，按改动幅度选择 `v主版本.次版本.修订号`，更新 `assets/interface.json` 的 `version`。确认 Actions 检查和打包通过后，推送与该版本一致的 Git 标签。Actions 会检查版本一致性并自动发布便携 ZIP。窗口标题显示项目名称和版本号。
+
+在 Windows x64 上用 Python 3.14.4 执行 `python tools/package_portable.py`，可将生成的 `install/` 打包成 `build/portable/MAautodori-win-x64-<版本>.zip`。
 
 - 任务入口与选项在 [assets/interface.json](assets/interface.json)，游戏流程在 [assets/resource/pipeline/](assets/resource/pipeline/)，Python Agent 在 [agent/](agent/)。
 - 修改 Pipeline 或任务配置后，在仓库根目录执行 `npm ci` 和 `npx @nekosu/maa-tools check`。涉及识别或触控时，再在 MuMu 验证实际受影响的步骤。

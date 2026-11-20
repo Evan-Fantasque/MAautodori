@@ -17,4 +17,4 @@
 
 ## Release Versions
 
-- Choose a version for every release based on its changes. Use `vMAJOR.MINOR.PATCH` and add a prerelease suffix when appropriate. Set the source interface version, pass it to the packager, and use it in the archive name. The window title displays the project name followed by the version.
+- Choose a version for every release based on its changes. Use `vMAJOR.MINOR.PATCH` and add a prerelease suffix when appropriate. Update `assets/interface.json` and confirm the Actions checks and portable build pass before pushing the matching tag. The tag workflow publishes the versioned ZIP. The window title displays the project name followed by the version.
