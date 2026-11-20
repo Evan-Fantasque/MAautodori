@@ -119,7 +119,7 @@ jobs:
           cd ../..
           mv deps/legacy-touch/minitouch deps/minitouch_EvATive7
           curl --fail --silent --show-error --location --retry 3 \
-            https://raw.githubusercontent.com/EvATive7/minitouch/4c22b45f1b7b5bfa47c6f96535d3e0d3751b3d34/LICENSE \
+            https://raw.githubusercontent.com/EvATive7/minitouch/e241dc6f9fa47f866692743024b84f02afac2e1f/LICENSE \
             --output deps/minitouch_EvATive7/LICENSE
           python -m pip install -r tools/requirements.txt
           args=("$VERSION" '${{ matrix.os }}' '${{ matrix.arch }}')
