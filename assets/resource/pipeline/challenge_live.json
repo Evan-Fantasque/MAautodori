@@ -1,0 +1,107 @@
+{
+    "ChallengeLive": {
+        "action": "Custom", "custom_action": "ChallengeLive",
+        "focus": {"Node.Action.Failed": "挑战演出停止，请检查当前画面和日志。"}
+    },
+    "ChallengeEnterSelection": {
+        "next": ["[JumpBack]ChallengeCPCancel", "ChallengeSongList", "[JumpBack]ChallengeBandBack", "SoloModeMenu", "SoloOpenLive"],
+        "timeout": 12000
+    },
+    "ChallengeModeTitle": {
+        "recognition": "OCR", "roi": [110, 13, 335, 41], "expected": "^挑战演出$"
+    },
+    "ChallengeSongList": {
+        "recognition": "And", "all_of": [
+            "ChallengeModeTitle",
+            {"recognition": "OCR", "roi": [110, 47, 335, 46], "expected": "^选择乐曲$"},
+            {"recognition": "OCR", "roi": [1084, 111, 118, 28], "expected": "^所持挑战点数$"},
+            {"recognition": "ColorMatch", "roi": [110, 18, 15, 27],
+             "lower": [220, 30, 72], "upper": [255, 122, 183], "count": 150}
+        ]
+    },
+    "ChallengeBalance": {
+        "recognition": "OCR", "roi": [1134, 134, 124, 30], "only_rec": true,
+        "replace": [["[,，\\s]", ""]], "expected": "^\\d+$"
+    },
+    "ChallengeCPDialog": {"recognition": "And", "all_of": ["SoloChallengeReady", "ChallengeModeTitle"]},
+    "ChallengeBandBack": {
+        "recognition": "And", "all_of": ["ChallengeBandReady"],
+        "action": "Click", "target": [15, 15, 76, 76], "post_delay": 700, "max_hit": 1
+    },
+    "ChallengeCPCancel": {
+        "recognition": "And", "all_of": [
+            "ChallengeCPDialog", {"recognition": "OCR", "roi": [394, 584, 225, 67], "expected": "^取消$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 650, "max_hit": 1
+    },
+    "ChallengeOpenCP": {"next": ["SoloConfirmChallengeSong"], "timeout": 8000},
+    "ChallengeDialogBalance": {
+        "recognition": "OCR", "roi": [709, 123, 128, 32], "only_rec": true,
+        "replace": [["[,，\\s]", ""]], "expected": "^\\d+$"
+    },
+    "ChallengeTierLabel": {"recognition": "OCR", "roi": [477, 190, 91, 46], "expected": "^200$"},
+    "ChallengeTierSelected": {
+        "recognition": "ColorMatch", "roi": [857, 193, 39, 40],
+        "lower": [220, 30, 72], "upper": [255, 122, 183], "count": 125
+    },
+    "ChallengeApplyCost": {"next": ["ChallengeConfirmCost"], "timeout": 6000},
+    "ChallengeConfirmCost": {
+        "recognition": "And", "all_of": [
+            "ChallengeCPDialog", "ChallengeDialogBalance", "ChallengeTierLabel", "ChallengeTierSelected",
+            {"recognition": "OCR", "roi": [657, 592, 222, 52], "expected": "^确定$"}
+        ],
+        "box_index": 4, "action": "Click", "post_delay": 700, "next": ["ChallengeBandReady"], "timeout": 12000
+    },
+    "ChallengeBandReady": {
+        "recognition": "And", "all_of": [
+            "ChallengeModeTitle",
+            {"recognition": "OCR", "roi": [110, 47, 335, 46], "expected": "^(选择乐队|最终确认)$"}
+        ]
+    },
+    "ChallengeBandCost": {
+        "recognition": "OCR", "roi": [1058, 537, 100, 40], "expected": "^\\d+\\s*消[费耗]$"
+    },
+    "ChallengePrepareChart": {"next": ["ChallengeBandForChart"], "timeout": 8000},
+    "ChallengeBandForChart": {
+        "recognition": "And", "all_of": ["ChallengeBandReady", "PlayBandSongTitle", "PlayBandDifficulty", "ChallengeBandCost"],
+        "next": ["SingleReadSong"], "timeout": 8000
+    },
+    "ChallengeStart": {
+        "recognition": "And", "all_of": [
+            "ChallengeBandForChart",
+            {"recognition": "OCR", "roi": [1013, 616, 232, 68], "expected": "^演出开始$"}
+        ],
+        "box_index": 1, "action": "Click", "next": ["playsongsingle"]
+    },
+    "ChallengeSettle": {
+        "next": [
+            "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose", "DailyLiveStats", "PlayFailureVisible",
+            "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"
+        ],
+        "timeout": 45000
+    },
+    "ChallengeReturn": {
+        "next": [
+            "ChallengeSongList", "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose",
+            "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext",
+            "[JumpBack]DailyLiveRankUp", "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext",
+            "[JumpBack]DailyLivePointsOK", "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip",
+            "SoloModeMenu", "SoloOpenLive"
+        ],
+        "timeout": 60000
+    },
+    "ChallengeRewardOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [383, 81, 153, 43], "expected": "^达成报酬$"},
+            {"recognition": "OCR", "roi": [535, 573, 203, 55], "expected": "^OK$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 750, "max_hit": 4
+    },
+    "ChallengeRewardListClose": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [200, 131, 590, 45], "expected": "达成报酬一览$"},
+            {"recognition": "OCR", "roi": [529, 509, 222, 56], "expected": "^关闭$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 750, "max_hit": 2
+    }
+}

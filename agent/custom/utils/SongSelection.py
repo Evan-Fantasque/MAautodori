@@ -26,9 +26,9 @@ def verify_band(context, image, title, difficulty):
     )
 
 
-def select_difficulty(context, difficulty):
+def select_difficulty(context, difficulty, *, list_node="FreeSongList"):
     image = capture(context)
-    if not recognize(context, "FreeSongList", image):
+    if not recognize(context, list_node, image):
         return False
     x = DIFFICULTIES[difficulty]
     label = recognize(context, "SongPickerDifficulty", image, {
@@ -57,7 +57,7 @@ def _find_visible(context, image, title):
     return None
 
 
-def _search_list(context, title):
+def _search_list(context, title, list_node):
     deadline = time.monotonic() + 150
     controller = context.tasker.controller
     expected = title_key(title)
@@ -66,7 +66,7 @@ def _search_list(context, title):
         stalls = 0
         while time.monotonic() < deadline:
             image = capture(context)
-            if not recognize(context, "FreeSongList", image):
+            if not recognize(context, list_node, image):
                 return False
             if title_key(_label(context, "PlaySelectSongTitle", image)) == expected:
                 return True
@@ -94,21 +94,20 @@ def _search_list(context, title):
     return False
 
 
-def select_song(context, title, difficulty):
-    """Select a titled chart in ordinary Free Live, preserving the game's filter settings."""
-    # When the current song lacks the requested chart, first locate the target
-    # using the current difficulty and apply the requested difficulty afterward.
-    difficulty_selected = select_difficulty(context, difficulty)
-    if _search_list(context, title):
-        return difficulty_selected or select_difficulty(context, difficulty)
+def select_song(context, title, difficulty, *, list_node="FreeSongList"):
+    """Find a song in a compatible list and verify the requested difficulty on that song."""
+    # A difficulty filter can change which songs are visible.
+    select_difficulty(context, difficulty, list_node=list_node)
+    if _search_list(context, title, list_node):
+        return select_difficulty(context, difficulty, list_node=list_node)
     image = capture(context)
-    if not recognize(context, "FreeSongList", image):
+    if not recognize(context, list_node, image):
         return False
     all_songs = recognize(context, "SongPickerAllSongs", image)
     if not all_songs or not click(context, all_songs.box):
         return False
     time.sleep(0.6)
-    return _search_list(context, title) and (difficulty_selected or select_difficulty(context, difficulty))
+    return _search_list(context, title, list_node) and select_difficulty(context, difficulty, list_node=list_node)
 
 
 def exact_title_pattern(title):

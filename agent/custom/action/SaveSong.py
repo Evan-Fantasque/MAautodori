@@ -25,7 +25,11 @@ class SaveSong(CustomAction):
         params = argv.custom_action_param
         if isinstance(params, str):
             params = json.loads(params)
-        native = isinstance(params, dict) and params.get("touch_backend") == "maafw"
+        backend = params.get("touch_backend") if isinstance(params, dict) else None
+        if backend not in (None, "maafw", "legacy"):
+            logger.error("无法识别打歌触控链路 %r", backend)
+            return self.RunResult(success=False)
+        native = backend == "maafw"
         difficulty = global_state.difficulty
         humanize = global_state.human_delay_enabled
         default_move_slice_size = global_state.default_move_slice_size
@@ -53,16 +57,19 @@ class SaveSong(CustomAction):
         
         # 生成图谱与触控命令
         try:
-            if native:
+            # Both selectable backends take difficulty from the same band screen.
+            # Older tasks without a backend parameter still use their configured difficulty.
+            if backend is not None:
                 screen = context.tasker.controller.post_screencap().wait().get()
                 if screen is None or not screen.size:
                     logger.error("无法读取编队页面")
                     return self.RunResult(success=False)
                 detected = context.run_recognition("PlayBandDifficulty", screen)
-                if not detected or not detected.best_result:
+                if not detected or not detected.hit or not detected.best_result:
                     logger.error("未确认当前难度")
                     return self.RunResult(success=False)
                 difficulty = detected.best_result.text.lower()
+            if native:
                 resolution = (screen.shape[1], screen.shape[0])
             else:
                 resolution = global_state.player.resolution

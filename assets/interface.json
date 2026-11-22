@@ -11,7 +11,7 @@
     "welcome": "首次使用！欢迎使用 MAautodori!",
     // 填写项目地址和版本号可实现自动更新功能
     "github": "https://github.com/Evan-Fantasque/MAautodori",
-    "version": "v1.0.0",
+    "version": "v1.1.0",
     // Mirror酱为第三方分发服务，新项目默认关闭
     // 若有需要请联系 Mirror酱 开通，直接自行开启是无法使用的
     // "mirrorchyan_rid": "MaaXXX",
@@ -70,6 +70,12 @@
             "entry": "ui_simplified_entry"
         },
         {
+            "name": "挑战演出",
+            "entry": "ChallengeLive",
+            "description": "循环进行活动单人挑战演出。每场结算后重新读取所持挑战点数。",
+            "option": ["挑战曲目", "难度", "挑战点数档", "点数不足时"]
+        },
+        {
             "name": "每日清火＋免费三抽",
             "entry": "DailyClear",
             "description": "一键清火并领完每日免费演出招募。0 火且尚未满足演出条件时，补打一场 0 火自由演出。",
@@ -104,7 +110,25 @@
         //    "entry": "MissionEntry"
         //}
     ],
+    "global_option": ["打歌触控链路"],
+    "setting": [
+        {"name": "rhythm", "label": "打歌", "option": ["打歌触控链路"]}
+    ],
     "option": {
+        "打歌触控链路": {
+            "type": "select",
+            "description": "用于自由演出（单曲）、挑战演出及每日清火的打歌环节。EvATive7 使用设备执行反馈补偿延迟。",
+            "default_case": "MaaFramework",
+            "cases": [
+                {"name": "MaaFramework", "label": "MaaFramework（默认）", "pipeline_override": {"SingleReadSong": {"custom_action_param": {"touch_backend": "maafw"}}}},
+                {"name": "EvATive7", "label": "EvATive7 Minitouch（延迟补偿）", "pipeline_override": {"SingleReadSong": {"custom_action_param": {"touch_backend": "legacy"}}}}
+            ]
+        },
+        "挑战曲目": {
+            "type": "input",
+            "inputs": [{"name": "song", "label": "完整曲名（留空沿用当前曲目）", "default": ""}],
+            "pipeline_override": {"ChallengeLive": {"custom_action_param": {"title": "{song}"}}}
+        },
         "清火设置": {
             "type": "input",
             "inputs": [
@@ -123,37 +147,63 @@
                     "name": "EASY",
                     "pipeline_override": {
                         "DailyClear": {"attach": {"difficulty": "EASY"}},
-                        "DailyBurnBoost": {"attach": {"difficulty": "EASY"}}
+                        "DailyBurnBoost": {"attach": {"difficulty": "EASY"}},
+                        "ChallengeLive": {"attach": {"difficulty": "EASY"}}
                     }
                 },
                 {
                     "name": "NORMAL",
                     "pipeline_override": {
                         "DailyClear": {"attach": {"difficulty": "NORMAL"}},
-                        "DailyBurnBoost": {"attach": {"difficulty": "NORMAL"}}
+                        "DailyBurnBoost": {"attach": {"difficulty": "NORMAL"}},
+                        "ChallengeLive": {"attach": {"difficulty": "NORMAL"}}
                     }
                 },
                 {
                     "name": "HARD",
                     "pipeline_override": {
                         "DailyClear": {"attach": {"difficulty": "HARD"}},
-                        "DailyBurnBoost": {"attach": {"difficulty": "HARD"}}
+                        "DailyBurnBoost": {"attach": {"difficulty": "HARD"}},
+                        "ChallengeLive": {"attach": {"difficulty": "HARD"}}
                     }
                 },
                 {
                     "name": "EXPERT",
                     "pipeline_override": {
                         "DailyClear": {"attach": {"difficulty": "EXPERT"}},
-                        "DailyBurnBoost": {"attach": {"difficulty": "EXPERT"}}
+                        "DailyBurnBoost": {"attach": {"difficulty": "EXPERT"}},
+                        "ChallengeLive": {"attach": {"difficulty": "EXPERT"}}
                     }
                 },
                 {
                     "name": "SPECIAL",
                     "pipeline_override": {
                         "DailyClear": {"attach": {"difficulty": "SPECIAL"}},
-                        "DailyBurnBoost": {"attach": {"difficulty": "SPECIAL"}}
+                        "DailyBurnBoost": {"attach": {"difficulty": "SPECIAL"}},
+                        "ChallengeLive": {"attach": {"difficulty": "SPECIAL"}}
                     }
                 }
+            ]
+        },
+        "挑战点数档": {
+            "type": "select",
+            "default_case": "200",
+            "cases": [
+                {"name": "200", "label": "200 点（1 倍）", "pipeline_override": {"ChallengeLive": {"attach": {"cp_tier": 200}}}},
+                {"name": "400", "label": "400 点（2 倍）", "pipeline_override": {"ChallengeLive": {"attach": {"cp_tier": 400}}}},
+                {"name": "800", "label": "800 点（4 倍）", "pipeline_override": {"ChallengeLive": {"attach": {"cp_tier": 800}}}},
+                {"name": "1600", "label": "1600 点（8 倍）", "pipeline_override": {"ChallengeLive": {"attach": {"cp_tier": 1600}}}}
+            ]
+        },
+        "点数不足时": {
+            "type": "select",
+            "description": "可以直接停止，也可以改用还付得起的最高档。降档下限不能高于首选档。",
+            "default_case": "停止",
+            "cases": [
+                {"name": "停止", "pipeline_override": {"ChallengeLive": {"attach": {"cp_floor": 0}}}},
+                {"name": "降档至最低 200 点", "pipeline_override": {"ChallengeLive": {"attach": {"cp_floor": 200}}}},
+                {"name": "降档至最低 400 点", "pipeline_override": {"ChallengeLive": {"attach": {"cp_floor": 400}}}},
+                {"name": "降档至最低 800 点", "pipeline_override": {"ChallengeLive": {"attach": {"cp_floor": 800}}}}
             ]
         },
         "常规用火": {
