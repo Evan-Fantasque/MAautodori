@@ -53,8 +53,13 @@
     "DailyRecruitRemaining": {"recognition": "OCR", "roi": [1114, 598, 86, 27], "only_rec": true, "replace": [["\\s", ""]], "expected": "^剩余[0-3]回$"},
     "DailyRecruitExhausted": {"recognition": "OCR", "roi": [1110, 594, 155, 105], "expected": "^(剩余0回|今日已完成[！!]?)$"},
     "DailyRecruitLockedBadge": {
-        "recognition": "OCR", "roi": [1110, 588, 164, 112],
-        "expected": "^(今日)?(?:尚未|未)完成演出[！!]?$"
+        "recognition": "Or", "any_of": [
+            {"recognition": "OCR", "roi": [1110, 588, 164, 112], "expected": "^(今日)?(?:尚未|未)完成演出[！!]?$"},
+            {"recognition": "And", "all_of": [
+                {"recognition": "OCR", "roi": [1131, 632, 112, 23], "expected": "^(?:尚未|未)完成$"},
+                {"recognition": "OCR", "roi": [1130, 651, 132, 23], "expected": "^每日演出(?:奖励|报酬)[！!]?$"}
+            ]}
+        ]
     },
     "DailyRecruitSingle": {"recognition": "OCR", "roi": [1125, 627, 126, 31], "expected": "^1\\s*次招募$"},
     "DailyRecruitFree": {"recognition": "OCR", "roi": [1199, 658, 54, 28], "expected": "^免费$"},
@@ -87,12 +92,16 @@
         "next": ["DailyRecruitResult", "[JumpBack]DailyRecruitCut", "[JumpBack]DailyRecruitSkip", "[JumpBack]DailyRecruitCard"],
         "timeout": 75000
     },
+    "DailyRecruitPending": {
+        "recognition": "Or", "any_of": ["DailyRecruitResult", "DailyRecruitCut"]
+    },
     "DailyRecruitBack": {
         "next": ["DailyRecruitBanner", "[JumpBack]DailyRecruitRewardOK", "[JumpBack]DailyRecruitResultOK"],
         "timeout": 20000
     },
     "DailyRecruitCut": {
-        "recognition": "OCR", "roi": [479, 601, 319, 44], "expected": "^TOUCH\\s*TO\\s*CUT$",
+        "recognition": "OCR", "roi": [489, 602, 306, 42], "only_rec": true,
+        "expected": "^TOUCH\\s*TO\\s*CUT$", "target": [612, 608, 54, 28],
         "action": "Click", "post_delay": 900, "max_hit": 1
     },
     "DailyRecruitSkip": {
@@ -117,7 +126,11 @@
     },
     "DailyRecruitResultOK": {
         "recognition": "And",
-        "all_of": ["DailyRecruitResult", {"recognition": "OCR", "roi": [953, 616, 228, 65], "expected": "^确定$"}],
-        "box_index": 1, "action": "Click", "post_delay": 750, "max_hit": 1
+        "all_of": [
+            "DailyRecruitResult",
+            {"recognition": "ColorMatch", "roi": [966, 622, 204, 45], "lower": [230, 25, 70], "upper": [255, 110, 173], "count": 3500},
+            {"recognition": "OCR", "roi": [953, 616, 228, 65], "expected": "^确定$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 750, "max_hit": 1
     }
 }

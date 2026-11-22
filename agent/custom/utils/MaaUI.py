@@ -21,6 +21,8 @@ def click(context, target):
     return context.tasker.controller.post_click(*target).wait().succeeded
 
 
-def reached(context, entry, final, override=None):
+def reached(context, entry, final, override=None, *, reset_hits=()):
+    for node in reset_hits:
+        context.clear_hit_count(node)
     result = context.run_task(entry, override)
     return bool(result and result.nodes and result.nodes[-1].name == final and result.nodes[-1].completed)

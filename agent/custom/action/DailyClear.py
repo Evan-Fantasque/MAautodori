@@ -3,12 +3,13 @@ import logging
 
 from maa.custom_action import CustomAction
 
-from .DailyRecruit import recruit
+from .DailyRecruit import finish_pull, recruit
 from ..utils.MaaUI import capture, click, reached, recognize
 from ..utils.SongSelection import DIFFICULTIES, exact_title_pattern, select_song, verify_band
 
 
 logger = logging.getLogger(__name__)
+LIVE_REWARD_NODES = ("DailyLiveLargeRewardOK", "DailyLiveRewardOK", "DailyLiveRewardNext")
 
 
 def choose_boost(balance, regular, max_available):
@@ -81,6 +82,13 @@ def _set_boost(context, balance, regular, prioritize_max=True):
     if tier != 10 and recognize(context, "DailyBoostSelected", image, _radio(517)):
         if not click(context, (1002, 517)):
             raise RuntimeError("无法关闭最大消费档")
+        if not reached(context, "DailyBoostWaitRegular", "DailyBoostRegularReady", {
+            "DailyBoostSelected": {"roi": [981, 114, 42, 269]},
+        }):
+            raise RuntimeError("关闭最大消费档后常规档未就绪")
+        image = capture(context)
+        if recognize(context, "DailyBoostSelected", image, _radio(517)):
+            raise RuntimeError("最大消费档仍处于选中状态")
     if not recognize(context, "DailyBoostSelected", image, _radio(y)) and not click(context, (1002, y)):
         raise RuntimeError(f"无法选择 {tier} 火")
     if not reached(context, "DailyBoostApply", "SoloFreeReady", _radio(y)):
@@ -119,13 +127,24 @@ def _play(context, title, difficulty, preview):
     }
     if not reached(context, "ui_simplified_entry", "playsongsingle", override):
         raise RuntimeError("单曲任务中止，请检查演出画面")
-    if not reached(context, "DailySettle", "DailyLiveStats"):
+    if not reached(context, "DailySettle", "DailyLiveStats", reset_hits=LIVE_REWARD_NODES):
         raise RuntimeError("未确认演出正常结算")
 
 
 def _return_after_live(context):
-    if not reached(context, "DailySettleBack", "DailyLobby"):
+    # MaaFW shares max_hit counters across transitions in the same action.
+    if not reached(context, "DailySettleBack", "DailyLobby", reset_hits=(
+        *LIVE_REWARD_NODES, "DailyLiveRewardList", "DailyLiveRankUp",
+        "DailyLiveStatsNext", "DailyLiveExpNext", "DailyLivePointsOK",
+        "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip", "DailyLiveHome",
+    )):
         raise RuntimeError("已结算，但未能返回自由演出入口")
+
+
+def _back_to_home(context):
+    return reached(context, "DailyBackToHome", "StartupHomeReady", reset_hits=(
+        "DailyLobbyBack", "DailyRecruitListBack", "StartupRewardNext", "StartupDailyDialogue",
+    ))
 
 
 def _ready(context, *, keep_recruit=False):
@@ -135,8 +154,14 @@ def _ready(context, *, keep_recruit=False):
     if recognize(context, "DailyResumeSettlement", image):
         _return_after_live(context)
         return
+    if recognize(context, "DailyRecruitPending", image):
+        if keep_recruit:
+            return
+        if not finish_pull(context):
+            raise RuntimeError("未能关闭上次招募的结果")
+        image = capture(context)
     if recognize(context, "DailyRecruitList", image):
-        if keep_recruit or reached(context, "DailyBackToHome", "StartupHomeReady"):
+        if keep_recruit or _back_to_home(context):
             return
         raise RuntimeError("无法从招募页返回主菜单")
     if not reached(context, "start_app", "StartupHomeReady"):
@@ -144,8 +169,9 @@ def _ready(context, *, keep_recruit=False):
 
 
 def _go_to_recruit(context):
-    if not recognize(context, "DailyRecruitList", capture(context)):
-        if not reached(context, "DailyBackToHome", "StartupHomeReady"):
+    image = capture(context)
+    if not (recognize(context, "DailyRecruitList", image) or recognize(context, "DailyRecruitPending", image)):
+        if not _back_to_home(context):
             raise RuntimeError("未能返回主菜单，无法进入招募")
     return recruit(context)
 
@@ -153,7 +179,7 @@ def _go_to_recruit(context):
 def _burn_boost(context, title, difficulty, regular, prioritize_max):
     _ready(context)
     completed = 0
-    previous = None
+    previous_preview = None
     stalls = 0
     while True:
         if recognize(context, "FreeSongList", capture(context)):
@@ -161,19 +187,26 @@ def _burn_boost(context, title, difficulty, regular, prioritize_max):
         balance = _balance(context)
         if not balance:
             return completed
-        if previous is not None and balance >= previous:
-            stalls += 1
-            if stalls >= 2:
-                raise RuntimeError("连续两局后火焰未减少")
-        else:
-            stalls = 0
         _band(context, title, difficulty)
         balance = _balance(context)
         if not balance:
             return completed
+        if previous_preview is not None:
+            before, expected = previous_preview
+            if before - expected == 10 and balance > expected + 1:
+                # Allow one naturally restored boost before treating the preview as unreliable.
+                logger.warning("10 火演出预览 %d → %d，结算后实际剩余 %d，本次改用常规档", before, expected, balance)
+                prioritize_max = False
+                stalls = 0
+            elif balance >= before:
+                stalls += 1
+                if stalls >= 2:
+                    raise RuntimeError("连续两场常规演出后火焰未减少")
+            else:
+                stalls = 0
         preview = _set_boost(context, balance, regular, prioritize_max)
         _play(context, title, difficulty, preview)
-        previous = balance
+        previous_preview = preview
         completed += 1
         logger.info("已确认第 %d 场结算", completed)
         _return_after_live(context)
@@ -199,7 +232,7 @@ class DailyClear(CustomAction):
                 logger.info("清火完成，本次完成 %d 场", completed)
                 return self.RunResult(success=True)
             status = _go_to_recruit(context)
-            if status == "locked" and not completed:
+            if status == "locked":
                 _ready(context)
                 _band(context, title, difficulty)
                 if _balance(context) != 0:

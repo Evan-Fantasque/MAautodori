@@ -28,7 +28,10 @@
     },
     "DailyConfirmSong": {"next": ["SoloConfirmFreeSong"], "timeout": 8000},
     "DailyBackToHome": {
-        "next": ["StartupHomeReady", "[JumpBack]DailyLobbyBack", "[JumpBack]DailyRecruitListBack"],
+        "next": [
+            "StartupHomeReady", "[JumpBack]DailyLobbyBack", "[JumpBack]DailyRecruitListBack",
+            "[JumpBack]StartupRewardNext", "[JumpBack]StartupDailyDialogue"
+        ],
         "timeout": 16000
     },
     "DailyLobbyBack": {
@@ -61,6 +64,11 @@
         "recognition": "ColorMatch", "roi": [981, 345, 42, 38],
         "lower": [226, 35, 88], "upper": [255, 120, 187], "count": 130
     },
+    "DailyBoostWaitRegular": {"next": ["DailyBoostRegularReady"], "timeout": 4500},
+    "DailyBoostRegularReady": {
+        "recognition": "And", "all_of": ["DailyBoostDialog", "DailyBoostSelected"],
+        "post_delay": 250
+    },
     "DailyBoostApply": {"next": ["DailyBoostConfirm"], "timeout": 6000},
     "DailyBoostConfirm": {
         "recognition": "And",
@@ -76,16 +84,17 @@
     "DailyResumeSettlement": {
         "recognition": "Or", "any_of": [
             "DailyLiveStats", "DailyLiveRewardNext", "DailyLiveRewardOK", "DailyLiveLargeRewardOK",
-            "DailyLiveExpNext", "DailyLivePointsOK", "DailyLiveRewardList"
+            "DailyLiveExpNext", "DailyLivePointsOK", "DailyLiveRewardList", "DailyLiveRankUp"
         ]
     },
     "DailySettleBack": {
         "next": [
             "DailyLobby", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
             "[JumpBack]DailyLiveRewardList", "[JumpBack]DailyLiveRewardNext",
+            "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
-            "[JumpBack]DailyLiveStory", "[JumpBack]DailyLiveStoryMenu",
-            "[JumpBack]DailyLiveStoryConfirm", "[JumpBack]DailyLiveHome"
+            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip",
+            "[JumpBack]StoryConfirmSkip", "[JumpBack]DailyLiveHome"
         ],
         "timeout": 45000
     },
@@ -113,6 +122,14 @@
             {"recognition": "OCR", "roi": [114, 94, 177, 44], "expected": "^等级\\s*EXP$"}, "DailyLiveNext"
         ],
         "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 2
+    },
+    "DailyLiveRankUp": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [114, 94, 177, 44], "expected": "^等级\\s*EXP$"},
+            {"recognition": "OCR", "roi": [483, 291, 320, 43], "expected": "^LIVE\\s*BOOST\\s*[恢回]复了\\s*\\d+[！!]?$"},
+            {"recognition": "OCR", "roi": [531, 503, 218, 50], "expected": "^确定$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 2
     },
     "DailyLivePointsOK": {
         "recognition": "And", "all_of": [
@@ -142,24 +159,6 @@
             {"recognition": "OCR", "roi": [526, 575, 230, 56], "expected": "^OK$"}
         ],
         "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 4
-    },
-    "DailyLiveStory": {
-        "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [526, 54, 102, 37], "expected": "^跳过$"},
-            {"recognition": "OCR", "roi": [1013, 56, 113, 36], "expected": "^记录$"}
-        ],
-        "action": "Click", "max_hit": 1
-    },
-    "DailyLiveStoryMenu": {
-        "recognition": "TemplateMatch", "template": "common/reader/menu.png",
-        "roi": [1090, 12, 183, 99], "threshold": 0.86, "action": "Click", "max_hit": 1
-    },
-    "DailyLiveStoryConfirm": {
-        "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [411, 280, 475, 107], "expected": "^确定跳过这个故事吗[？?]?$"},
-            {"recognition": "OCR", "roi": [658, 422, 215, 59], "expected": "^(跳过|确定)$"}
-        ],
-        "box_index": 1, "action": "Click", "post_delay": 800, "max_hit": 1
     },
     "DailyLiveHome": {
         "recognition": "TemplateMatch", "template": "live/button/live_home.png",

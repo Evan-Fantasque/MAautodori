@@ -7,7 +7,9 @@ logger = logging.getLogger(__name__)
 
 
 def _open_banner(context):
-    return reached(context, "DailyRecruitOpen", "DailyRecruitBanner")
+    return reached(context, "DailyRecruitOpen", "DailyRecruitBanner", reset_hits=(
+        "DailyRecruitFromHome", "DailyRecruitSelectTab", "DailyRecruitScroll",
+    ))
 
 
 def _remaining(context, image):
@@ -15,15 +17,23 @@ def _remaining(context, image):
     return int(result.text[2]) if result else None
 
 
-def _finish_pull(context):
+def finish_pull(context):
     return (
-        reached(context, "DailyRecruitReveal", "DailyRecruitResult")
-        and reached(context, "DailyRecruitBack", "DailyRecruitBanner")
+        reached(context, "DailyRecruitReveal", "DailyRecruitResult", reset_hits=(
+            "DailyRecruitCut", "DailyRecruitSkip", "DailyRecruitCard",
+        ))
+        and reached(context, "DailyRecruitBack", "DailyRecruitBanner", reset_hits=(
+            "DailyRecruitRewardOK", "DailyRecruitResultOK",
+        ))
     )
 
 
 def recruit(context):
-    if not _open_banner(context):
+    image = capture(context)
+    if recognize(context, "DailyRecruitPending", image):
+        if not finish_pull(context):
+            raise RuntimeError("未能返回上次招募的卡池，请检查结果画面")
+    elif not _open_banner(context):
         raise RuntimeError("没有找到每日演出免费招募")
     initial = None
     for _ in range(4):
@@ -49,17 +59,20 @@ def recruit(context):
         deadline = time.monotonic() + 12
         while time.monotonic() < deadline:
             image = capture(context)
-            confirm = recognize(context, "DailyRecruitConfirm", image)
-            if confirm:
+            confirm = context.run_recognition("DailyRecruitConfirm", image)
+            if confirm and confirm.hit and confirm.box:
                 break
             if recognize(context, "DailyRecruitLocked", image):
-                if not reached(context, "DailyRecruitDismissLocked", "DailyRecruitBanner"):
+                if not reached(
+                    context, "DailyRecruitDismissLocked", "DailyRecruitBanner",
+                    reset_hits=("DailyRecruitLockedOK",),
+                ):
                     raise RuntimeError("无法关闭演出条件提示")
                 return "locked"
             time.sleep(0.25)
         else:
             raise RuntimeError("没有看到每日免费招募确认框，已停止")
-        if not click(context, (768, 477)) or not _finish_pull(context):
+        if not click(context, tuple(confirm.box)) or not finish_pull(context):
             raise RuntimeError("已确认招募，但无法确认结果，请检查游戏")
         image = capture(context)
         after = _remaining(context, image)
