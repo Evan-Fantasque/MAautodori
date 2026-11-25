@@ -100,27 +100,30 @@ jobs:
           out-file-path: "deps/mxu"
           extract: true
 
-      - name: Download legacy Minitouch
-        uses: robinraju/release-downloader@v1
+      - name: Check out EvATive7 Minitouch with the contact fix
+        uses: actions/checkout@v4
         with:
-          repository: EvATive7/minitouch
-          fileName: minitouch.zip
-          tag: v2.0.0
-          out-file-path: deps/legacy-touch
+          repository: Evan-Fantasque/minitouch
+          ref: a56848b27cb8b7b23ff845a377aa5bda19a2ed1a
+          path: deps/legacy-touch
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Build EvATive7 Minitouch
+        run: |
+          abis=(armeabi-v7a arm64-v8a x86 x86_64 riscv64)
+          (cd deps/legacy-touch && "$ANDROID_NDK_LATEST_HOME/ndk-build" "APP_ABI=${abis[*]}")
+          for abi in "${abis[@]}"; do
+            test -s "deps/legacy-touch/libs/$abi/minitouch"
+          done
+          mv deps/legacy-touch/libs deps/minitouch_EvATive7
+          cp deps/legacy-touch/LICENSE deps/minitouch_EvATive7/LICENSE
 
       - name: Install
         env:
           VERSION: ${{ needs.meta.outputs.tag }}
           IS_RELEASE: ${{ needs.meta.outputs.is_release }}
         run: |
-          cd deps/legacy-touch
-          echo '4bed7a1628bc1272f1835bc4f1522868e6956846c8120a8d76a0ee0aa389e549  minitouch.zip' | sha256sum --check
-          unzip -q minitouch.zip
-          cd ../..
-          mv deps/legacy-touch/minitouch deps/minitouch_EvATive7
-          curl --fail --silent --show-error --location --retry 3 \
-            https://raw.githubusercontent.com/EvATive7/minitouch/e241dc6f9fa47f866692743024b84f02afac2e1f/LICENSE \
-            --output deps/minitouch_EvATive7/LICENSE
           python -m pip install -r tools/requirements.txt
           args=("$VERSION" '${{ matrix.os }}' '${{ matrix.arch }}')
           if [[ "$IS_RELEASE" == true ]]; then

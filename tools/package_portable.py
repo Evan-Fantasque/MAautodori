@@ -25,6 +25,7 @@ README = """# MAautodori Windows x64 便携包
 若系统缺少 Edge WebView2 或 Visual C++ x64 运行库，请从微软安装。
 
 一键每日的配置步骤见[项目说明](https://github.com/Evan-Fantasque/MAautodori#从-mumu-启动到单人演出准备)。
+本地谱面放在 `mxu.exe` 同级的 `charts/`，例如 `charts/792-expert.bms`。详见[本地谱面](https://github.com/Evan-Fantasque/MAautodori#本地谱面)。
 
 本项目为第三方工具。使用本工具产生的后果由使用者自行承担。
 """

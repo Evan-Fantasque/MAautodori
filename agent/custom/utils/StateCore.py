@@ -1,6 +1,7 @@
 import threading
 import agent.custom.utils.player as player
 from functools import cached_property
+from hashlib import sha256
 from maa.context import Context
 from minitouchpy import (
     MNT,
@@ -202,9 +203,17 @@ def init_player_and_mnt(context: Context):
     mnt_assets = root / "share/MinitouchEvATive7"
     if not mnt_assets.is_dir():
         mnt_assets = root / "assets/minitouch_EvATive7"
+    binaries = sorted(mnt_assets.glob("*/minitouch"))
+    if not binaries:
+        raise FileNotFoundError(f"未找到 EvATive7 Minitouch 二进制文件: {mnt_assets}")
+    # minitouchpy reuses the emulator copy when its filename already exists.
+    asset_hash = sha256()
+    for binary in binaries:
+        asset_hash.update(binary.parent.name.encode("ascii"))
+        asset_hash.update(sha256(binary.read_bytes()).digest())
     mnt = MNT(
         adb_serial,
-        type_="EvATive7",
+        type_=f"EvATive7_{asset_hash.hexdigest()[:12]}",
         communicate_type=MNTServerCommunicateType.STDIO,
         additional_param=[],
         mnt_asset_path=mnt_assets,

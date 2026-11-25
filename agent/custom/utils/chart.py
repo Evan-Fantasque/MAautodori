@@ -10,8 +10,12 @@ from playhouse.sqlite_ext import JSONField
 
 import agent.custom.utils.util as util
 from agent.custom.utils.api import BestdoriAPI
+from agent.custom.utils.bms import load_local_bms
 import json
 import datetime
+
+
+_SAME_TIME_MS = 0.001
 
 
 class PlayRecord:
@@ -47,7 +51,9 @@ class Chart:
         self._id_, self._difficulty = id_and_difficulty
         self._song_name = song_name
         self._chart_name = f"{self._id_}-{self._difficulty}"
-        self._chart_data = BestdoriAPI.get_chart(self._id_, self._difficulty)
+        self._chart_data = load_local_bms(self._id_, self._difficulty)
+        if self._chart_data is None:
+            self._chart_data = BestdoriAPI.get_chart(self._id_, self._difficulty)
         self._logger = logging.getLogger(self._chart_name)
         self._bpms = []
         self.actions = []
@@ -147,16 +153,29 @@ class Chart:
         ]
 
         def get_finger(from_time, to_time) -> int:
+            selected = None
             for finger in available_fingers:
+                occupied = finger["occupied_time"]
                 if any(
-                        not (to_time <= occupied_from or from_time >= occupied_to)
-                        for occupied_from, occupied_to in finger["occupied_time"]
+                        to_time > occupied_from and from_time < occupied_to
+                        for occupied_from, occupied_to in occupied
                 ):
                     continue
-                else:
-                    finger["occupied_time"].append((from_time, to_time))
-                    return finger["id"]
-            return None
+                # Prefer a different contact when a slide tail and a tap land together.
+                if any(
+                        abs(to_time - occupied_from) <= _SAME_TIME_MS
+                        or abs(from_time - occupied_to) <= _SAME_TIME_MS
+                        for occupied_from, occupied_to in occupied
+                ):
+                    if selected is None:
+                        selected = finger
+                    continue
+                selected = finger
+                break
+            if selected is None:
+                raise ValueError(f"谱面在 {from_time:.3f} ms 超出可用触点数")
+            selected["occupied_time"].append((from_time, to_time))
+            return selected["id"]
 
         def add_tap(note_index, from_time, duration, pos):
             finger = get_finger(from_time, from_time + duration)
@@ -179,16 +198,12 @@ class Chart:
             )
 
         def split_number(num, part_size):
-            result = []
             cur = 0
-            while True:
-                if num - cur > part_size:
-                    result.append((cur, part_size))
-                    cur += part_size
-                else:
-                    result.append((cur, num - cur))
-                    break
-            return result
+            # A floating-point remainder must not schedule a move after the slide ends.
+            while num - cur > part_size + _SAME_TIME_MS:
+                yield cur, part_size
+                cur += part_size
+            yield cur, num - cur
 
         def add_smooth_move(
                 note_index,
@@ -289,6 +304,9 @@ class Chart:
                 from_lane = note_data["connections"][0]["lane"]
                 from_pos = get_lane_position(from_lane)
                 from_time = note_data["connections"][0]["time"]
+                if len(note_data["connections"]) == 1:
+                    add_tap(note_index, from_time, 50, from_pos)
+                    continue
                 to_time = note_data["connections"][-1]["time"]
 
                 end_flick = note_data["connections"][-1].get("flick")
@@ -351,7 +369,7 @@ class Chart:
             else:
                 logging.debug(f"notes_to_actions: Unknown type: {note_type}")
 
-        actions.sort(key=lambda x: x["time"])
+        actions.sort(key=lambda x: (x["time"], x["type"] != "up"))
         actions: list[dict]
 
         actions_with_wait: list[dict] = []
@@ -361,7 +379,7 @@ class Chart:
                 current_time = action["time"]
                 next_time = actions[i + 1]["time"]
 
-                if next_time - current_time > 0.001:
+                if next_time - current_time > _SAME_TIME_MS:
                     actions_with_wait.append(
                         {
                             "type": "wait",
@@ -385,6 +403,7 @@ class Chart:
             self.actions_to_cmd_index: self.actions_to_cmd_index + size
         ]
         commands = self._commands
+        pending_contacts = set()
 
         up_offset = offset_info.get("up", 0)
         down_offset = offset_info.get("down", 0)
@@ -403,16 +422,25 @@ class Chart:
         def round_tuple(target):
             return tuple(round(x) for x in target)
 
-        # append
-        for i, action in enumerate(actions):
+        def commit():
+            append(builder.commit())
+            pending_contacts.clear()
+
+        for action in actions:
             action_type = action["type"]
             action_index = action["index"]
 
             self._a2c_offset += interval_offset
 
+            if action_type != "wait":
+                finger = action["finger"]
+                # EvATive7 accepts only one operation per contact in each commit.
+                if finger in pending_contacts:
+                    commit()
+                pending_contacts.add(finger)
+
             if action_type == "down":
                 self._a2c_offset += down_offset
-                finger = action["finger"]
                 append(
                     builder.down(
                         finger,
@@ -425,7 +453,6 @@ class Chart:
                 )
             elif action_type == "move":
                 self._a2c_offset += move_offset
-                finger = action["finger"]
                 append(
                     builder.move(
                         finger,
@@ -439,7 +466,6 @@ class Chart:
 
             elif action_type == "up":
                 self._a2c_offset += up_offset
-                finger = action["finger"]
                 append(builder.up(finger), action_index)
 
             elif action_type == "wait":
@@ -468,7 +494,7 @@ class Chart:
                 rounded_waitfor = round(wait_for)
                 self._a2c_rounded_loss -= wait_for - rounded_waitfor
                 if rounded_waitfor > 0.01:
-                    append(builder.commit())
+                    commit()
                     append(builder.wait(rounded_waitfor))
 
         self.actions_to_cmd_index += size
