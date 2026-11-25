@@ -7,6 +7,7 @@ import yaml
 from minitouchpy import CommandBuilder
 from peewee import *
 from playhouse.sqlite_ext import JSONField
+from requests.exceptions import RequestException
 
 import agent.custom.utils.util as util
 from agent.custom.utils.api import BestdoriAPI
@@ -51,10 +52,14 @@ class Chart:
         self._id_, self._difficulty = id_and_difficulty
         self._song_name = song_name
         self._chart_name = f"{self._id_}-{self._difficulty}"
+        self._logger = logging.getLogger(self._chart_name)
         self._chart_data = load_local_bms(self._id_, self._difficulty)
         if self._chart_data is None:
-            self._chart_data = BestdoriAPI.get_chart(self._id_, self._difficulty)
-        self._logger = logging.getLogger(self._chart_name)
+            try:
+                _, self._chart_data = BestdoriAPI.get_bms(self._id_, self._difficulty)
+            except (RequestException, ValueError) as error:
+                self._logger.warning("国服 BMS 获取或解析失败，改用 Bestdori JSON。%s", error)
+                self._chart_data = BestdoriAPI.get_chart(self._id_, self._difficulty)
         self._bpms = []
         self.actions = []
         self._commands = []

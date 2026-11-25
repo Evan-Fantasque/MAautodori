@@ -24,19 +24,24 @@ def load_local_bms(song_id, difficulty):
     for extension in (".bms", ".txt"):
         path = _CHART_DIRECTORY / f"{song_id}-{difficulty}{extension}"
         try:
-            source = path.read_text(encoding="utf-8-sig")
+            raw = path.read_bytes()
         except FileNotFoundError:
             continue
-        except (OSError, UnicodeError) as error:
+        except OSError as error:
             raise ValueError(f"无法读取本地谱面 {path}: {error}") from error
         try:
-            known_chart = str(song_id) == "792" and difficulty == "expert"
-            chart = parse_bms(source, known_butai=known_chart)
+            chart = parse_song_bms(raw, song_id, difficulty)
         except ValueError as error:
             raise ValueError(f"本地谱面 {path}: {error}") from error
         _LOGGER.info("已读取本地 BMS 谱面 %s", path)
         return chart
     return None
+
+
+def parse_song_bms(raw, song_id, difficulty):
+    source = raw.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
+    known_butai = str(song_id) == "792" and difficulty.lower() == "expert"
+    return parse_bms(source, known_butai=known_butai)
 
 
 def _parse_rows(source):

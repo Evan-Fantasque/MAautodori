@@ -10,7 +10,7 @@ MAautodori 是一个面向《BanG Dream! 少女乐团派对！》简中服的 Mu
 
 [在 GitHub Releases 下载 Windows x64 便携包](https://github.com/Evan-Fantasque/MAautodori/releases/latest)
 
-使用 Windows x64。将便携 ZIP 完整解压到一个目录，双击 `mxu.exe`。便携包内含 Python、Agent 依赖、OCR 和触控组件。MuMu 和游戏需自行安装，并先在游戏中完成登录。打歌默认从 Bestdori 获取谱面，也可读取本地 BMS。
+使用 Windows x64。将便携 ZIP 完整解压到一个目录，双击 `mxu.exe`。便携包内含 Python、Agent 依赖、OCR 和触控组件。MuMu 和游戏需自行安装，并先在游戏中完成登录。打歌时可自动从 Bestdori 获取原始谱面并在本地解析。
 
 如果系统缺少运行库，请分别安装 [Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/#download-section) 和 [Visual C++ x64 运行库](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)。
 
@@ -46,9 +46,15 @@ MAautodori 是一个面向《BanG Dream! 少女乐团派对！》简中服的 Mu
 
 ## 本地谱面
 
-在 `mxu.exe` 同级目录创建 `charts/`，将自行取得的 BanG Dream! 原始 BMS 按 `曲目ID-难度.bms` 命名。例如《舞台に立って》EXPERT 使用 `charts/792-expert.bms`，也接受同名 `.txt`。两种触控链路都优先读取本地谱面，找不到时使用 Bestdori 的解析结果。遇到不兼容的本地谱面时，任务停止并在日志中提示原因。曲名索引仍由 Bestdori 提供。
+两种触控链路都会在演出准备阶段按曲目 ID 和难度下载简中服原始 BMS。解析成功的文件会缓存 24 小时。下载失败或格式暂不支持时，任务在日志中记录原因，并继续使用 Bestdori 已解析的 JSON。曲名索引仍由 Bestdori 提供。
 
-《舞台に立って》EXPERT 的连续滑键修正会在读取匹配的原始 BMS 时自动生效。请自行将谱面放入 `charts/`。 [《舞台に立って》EXPERT 简中服原始 BMS](https://bestdori.com/assets/cn/musicscore/musicscore800_rip/792_butai_expert.txt)
+如需手动指定谱面，在 `mxu.exe` 同级的 `charts/` 放入 `曲目ID-难度.bms`。也接受同名 `.txt`。手动文件优先，文件无法解析时会停止并提示原因。《舞台に立って》EXPERT 的连续滑键修正会在读取匹配的原始 BMS 时自动生效。 [《舞台に立って》EXPERT 简中服原始 BMS](https://bestdori.com/assets/cn/musicscore/musicscore800_rip/792_butai_expert.txt)
+
+开发时也可以在仓库根目录单独下载一张经过验证的 BMS。
+
+```powershell
+.\install\.venv\Scripts\python.exe -m tools.fetch_bms 792 expert --output-dir .\install\charts
+```
 
 ## 本地开发和打包
 
