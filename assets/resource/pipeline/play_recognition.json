@@ -10,6 +10,40 @@
         "template": "live/live_failed.png",
         "threshold": 0.8
     },
+    "PlayLoadInterrupted": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [235, 88, 104, 45], "expected": "^错误$"},
+            {"recognition": "OCR", "roi": [527, 305, 226, 43], "expected": "^连接中断[。.]?$"},
+            {"recognition": "OCR", "roi": [521, 550, 239, 66], "expected": "^确定$"}
+        ],
+        "box_index": 2, "action": "StopTask",
+        "focus": {"Node.Action.Starting": "游戏载入时连接中断。请先确认当前演出状态，再重试。"}
+    },
+    "PlayStartButton": {"recognition": "OCR", "roi": [1013, 616, 232, 68], "expected": "^(演出开始|第[123]曲开始)$"},
+    "PlayAutoOff": {"recognition": "OCR", "roi": [802, 563, 183, 40], "expected": "^自动演出\\s*关$"},
+    "PlayPresentationOff": {
+        "recognition": "And", "all_of": [
+            "PlayStartButton",
+            {"recognition": "Or", "any_of": [
+                {"recognition": "OCR", "roi": [178, 627, 72, 46], "expected": "^OFF$"},
+                {"recognition": "ColorMatch", "roi": [119, 627, 148, 48], "lower": [250, 250, 250], "upper": [255, 255, 255], "count": 7100}
+            ]}
+        ]
+    },
+    "PlayPresentationEnabled": {
+        "recognition": "And", "all_of": [
+            "PlayStartButton",
+            {"recognition": "Or", "any_of": [
+                {"recognition": "TemplateMatch", "roi": [94, 609, 245, 96], "template": ["live/button/liveplay_3d.png", "live/button/liveplay_mv.png"], "threshold": 0.92},
+                {"recognition": "OCR", "roi": [231, 628, 262, 50], "expected": "(?i)^.*M\\s*V$"}
+            ]}
+        ],
+        "action": "Click", "target": [125, 631, 33, 35], "post_delay": 500, "max_hit": 3
+    },
+    "PlayPreparePresentation": {
+        "next": ["PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"],
+        "timeout": 5500
+    },
     "PlayCheckBoost": {
         "next": ["PlayBoostEnough", "PlayBoostLow"],
         "timeout": 5000,

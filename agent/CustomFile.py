@@ -5,6 +5,8 @@ from agent.custom.action.DailyClear import DailyClear, DailyFreeRecruit
 from agent.custom.action.Play import Play
 from agent.custom.action.SaveSong import SaveSong
 from agent.custom.action.SavePlayResult import SavePlayResult
+from agent.custom.action.Startup import EnsureGameForeground
+from agent.custom.action.StageChallenge import StageChallenge
 
 from agent.custom.recognition.SongRecognition import SongRecognition
 from agent.custom.recognition.PlayResultRecognition import PlayResultRecognition
@@ -12,6 +14,8 @@ from agent.custom.recognition.PlayResultRecognition import PlayResultRecognition
 AgentServer.custom_action("ChallengeLive")(ChallengeLive)
 AgentServer.custom_action("DailyClear")(DailyClear)
 AgentServer.custom_action("DailyFreeRecruit")(DailyFreeRecruit)
+AgentServer.custom_action("EnsureGameForeground")(EnsureGameForeground)
+AgentServer.custom_action("StageChallenge")(StageChallenge)
 
 @AgentServer.custom_action("Play")
 class PlayClass(Play):

@@ -9,7 +9,7 @@
     "all_of": [
       "SoloFreeReady",
       "PlayBandDifficulty",
-      {"recognition": "OCR", "roi": [802, 563, 183, 40], "expected": "^自动演出\\s*关$"}
+      "PlayAutoOff"
     ],
     "next": ["SingleReadSong"],
     "timeout": 5000,
@@ -21,7 +21,7 @@
     "custom_recognition_param": {"ocr_node": "PlayBandSongTitle"},
     "action": "Custom",
     "custom_action": "SaveSong",
-    "custom_action_param": {"touch_backend": "maafw"},
+    "custom_action_param": {"touch_backend": "legacy"},
     "next": ["startlivesingle"],
     "timeout": 5000,
     "on_error": ["stop"]
@@ -30,7 +30,8 @@
     "recognition": "And",
     "all_of": [
       "SingleFreeBand",
-      {"recognition": "OCR", "roi": [1020, 621, 220, 62], "expected": "^演出开始$"}
+      "PlayStartButton",
+      "PlayPresentationOff"
     ],
     "box_index": 1,
     "action": "Click",

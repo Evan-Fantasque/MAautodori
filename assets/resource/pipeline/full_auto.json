@@ -1,9 +1,7 @@
 {
   "select_song": {
-    "recognition": "OCR",
-    "expected": [
-      "选择乐曲"
-    ],
+    "recognition": "And",
+    "all_of": ["FreeSongList"],
     "next": [
       "get_song_name",
       "random_choice_song_action",
@@ -22,8 +20,6 @@
     "recognition": "Custom",
     "custom_recognition": "SongRecognition",
     "custom_recognition_param": {"ocr_node": "PlaySelectSongTitle"},
-    "action": "Custom",
-    "custom_action": "SaveSong",
     "next": [
       "click_confirm_on_song_select"
     ],
@@ -39,66 +35,48 @@
     ]
   },
   "click_confirm_on_song_select": {
-    "recognition": "TemplateMatch",
-    "template": [
-      "common/button/confirm/pink.png",
-      "common/button/confirm/white.png"
-    ],
+    "recognition": "And",
+    "all_of": ["SoloConfirmFreeSong"],
     "action": "Click",
+    "post_delay": 700,
     "next": [
       "wait_for_final_confirmation",
       "[JumpBack]click_confirm_on_song_select"
     ]
   },
   "wait_for_final_confirmation": {
-    "recognition": "OCR",
-    "expected": [
-      "选择乐队",
-      "最终确认"
-    ],
-    "timeout": 3000,
-    "next": [
-      "disable_liveplay",
-      "[JumpBack]switch_liveplay_mode"
-    ]
+    "recognition": "And",
+    "all_of": ["SingleFreeBand"],
+    "timeout": 8000,
+    "next": ["MiningReadSong"]
+  },
+  "MiningReadSong": {
+    "recognition": "Custom",
+    "custom_recognition": "SongRecognition",
+    "custom_recognition_param": {"ocr_node": "PlayBandSongTitle"},
+    "action": "Custom",
+    "custom_action": "SaveSong",
+    "custom_action_param": {"touch_backend": "legacy"},
+    "next": ["disable_liveplay"]
   },
   "disable_liveplay": {
-    "recognition": "TemplateMatch",
-    "template": [
-      "live/button/liveplay_3d.png",
-      "live/button/liveplay_mv.png"
-    ],
-    "inverse": true,
-    "next": [
-      "startlive"
-    ],
-    "roi": [
-      58,
-      580,
-      363,
-      140
-    ]
+    "recognition": "And", "all_of": ["PlayPresentationOff"],
+    "next": ["startlive"]
   },
   "startlive": {
     "action": "Click",
-    "recognition": "TemplateMatch",
-    "pre_wait_freezes": {
-      "threshold": 0.65,
-      "time": 3000
-    },
-    "template": "live/button/startlive.png",
-    "post_delay": 3000,
-    "next": [
-      "playsong",
-      "[JumpBack]startlive",
-      "[JumpBack]confirm_button",
-      "[JumpBack]login_expired",
-      "[JumpBack]connect_failed"
-    ]
+    "recognition": "And",
+    "all_of": ["SingleFreeBand", "PlayStartButton", "PlayPresentationOff"],
+    "box_index": 1,
+    "timeout": 45000,
+    "next": ["PlayLoadInterrupted", "playsong"]
   },
   "playsong": {
+    "recognition": "And",
+    "all_of": ["PlayPauseReady"],
     "action": "Custom",
     "custom_action": "Play",
+    "custom_action_param": {"skip_late": true},
     "next": [
       "wait_for_result_screen",
       "[JumpBack]live_failed",
@@ -135,15 +113,6 @@
       "exit_button",
       "[JumpBack]login_expired",
       "[JumpBack]connect_failed"
-    ]
-  },
-  "switch_liveplay_mode": {
-    "action": "Click",
-    "target": [
-      125,
-      631,
-      33,
-      35
     ]
   },
   "live_home_button": {

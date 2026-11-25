@@ -1,22 +1,73 @@
 {
     "start_app": {
-        "action": "StartApp",
-        "package": "com.bilibili.star.bili",
+        "action": "Custom",
+        "custom_action": "EnsureGameForeground",
         "timeout": 120000,
+        "focus": {"Node.PipelineNode.Failed": "未能进入游戏主菜单，请检查当前画面是否有可用的返回入口。"},
         "next": [
+            "[JumpBack]StartupMenuHome",
             "StartupLoginRequired",
+            "[JumpBack]StartupDownloadFailed",
+            "[JumpBack]StartupDismissInterrupted",
             "[JumpBack]StartupCloseNotice",
             "[JumpBack]StartupClosePromotion",
             "[JumpBack]StartupAdvancePromotion",
             "[JumpBack]StartupAdvanceNewSong",
             "[JumpBack]StartupRewardNext",
             "[JumpBack]StartupDailyDialogue",
+            "[JumpBack]DailyLiveStoryUnlockOK",
+            "[JumpBack]DailyLiveLargeRewardOK",
+            "[JumpBack]DailyLiveRewardOK",
+            "[JumpBack]DailyLiveRewardList",
+            "[JumpBack]DailyLiveRewardNext",
+            "[JumpBack]DailyLiveRankUp",
+            "[JumpBack]DailyLiveStatsNext",
+            "[JumpBack]DailyLiveExpNext",
+            "[JumpBack]DailyLivePointsOK",
             "[JumpBack]StoryOpenMenu",
             "[JumpBack]StorySelectSkip",
             "[JumpBack]StoryConfirmSkip",
             "StartupHomeReady",
-            "[JumpBack]StartupTapTitle"
+            "[JumpBack]StartupTapTitle",
+            "[JumpBack]DailyLiveHome",
+            "[JumpBack]StartupOpenHomeMenu",
+            "[JumpBack]StartupBackArrow"
         ]
+    },
+    "StartupLaunch": {"action": "StartApp", "package": "com.bilibili.star.bili"},
+    "StartupDownloadFailed": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [542, 304, 185, 37], "expected": "^下载失败[。.]?$"},
+            {"recognition": "OCR", "roi": [539, 340, 210, 38], "expected": "^返回标题画面$"},
+            {"recognition": "OCR", "roi": [521, 414, 239, 67], "expected": "^确定$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 1100, "max_hit": 1
+    },
+    "StartupDismissInterrupted": {
+        "recognition": "And", "all_of": ["PlayLoadInterrupted"],
+        "action": "Click", "post_delay": 1100, "max_hit": 1
+    },
+    "StartupOpenHomeMenu": {
+        "recognition": "And", "all_of": [
+            {"recognition": "TemplateMatch", "roi": [1186, 14, 65, 80], "template": "common/button/menu/main.png", "threshold": 0.9},
+            {"recognition": "ColorMatch", "roi": [1207, 37, 36, 35], "lower": [226, 25, 72], "upper": [255, 108, 175], "count": 120}
+        ],
+        "box_index": 0, "action": "Click", "post_delay": 600, "max_hit": 3
+    },
+    "StartupMenuHome": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [150, 105, 118, 53], "expected": "^菜单$"},
+            {"recognition": "TemplateMatch", "roi": [150, 165, 97, 84], "template": "common/button/menu/home.png", "threshold": 0.9},
+            {"recognition": "OCR", "roi": [244, 183, 128, 62], "expected": "^主页$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 900, "max_hit": 2
+    },
+    "StartupBackArrow": {
+        "recognition": "And", "all_of": [
+            {"recognition": "TemplateMatch", "roi": [6, 7, 95, 91], "template": "daily/recruit_back.png", "threshold": 0.92},
+            {"recognition": "ColorMatch", "roi": [30, 33, 44, 42], "lower": [226, 25, 72], "upper": [255, 108, 175], "count": 180}
+        ],
+        "box_index": 0, "action": "Click", "post_delay": 700, "max_hit": 6
     },
     "StartupTapTitle": {
         "recognition": "And",

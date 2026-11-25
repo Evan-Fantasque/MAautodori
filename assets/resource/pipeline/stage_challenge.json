@@ -1,0 +1,102 @@
+{
+    "StageChallenge": {
+        "action": "Custom", "custom_action": "StageChallenge",
+        "focus": {"Node.Action.Failed": "舞台挑战已停止，请检查当前画面和日志。"}
+    },
+    "StageChallengeSelect": {
+        "next": ["StageCancelAreaItems", "StageCloseRosterMismatch", "StageRecommendationDone", "SoloStageReady", "SoloConfirmStage", "SoloMainStageCatalog", "[JumpBack]SoloSwitchMainStage", "SoloEnterStage", "SoloModeMenu", "SoloOpenLive"],
+        "timeout": 15000
+    },
+    "StageRetryLevelConfirm": {
+        "recognition": "And", "all_of": ["SoloConfirmStage"],
+        "action": "Click", "post_delay": 700, "max_hit": 1
+    },
+    "StageRecommendationDone": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [383, 150, 194, 42], "expected": "^推荐编成$"},
+            {"recognition": "OCR", "roi": [514, 493, 252, 65], "expected": "^关闭$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 600, "next": ["SoloStageReady"], "timeout": 5000
+    },
+    "StageRecommendRoster": {"next": ["StageRecommendButton"], "timeout": 5000},
+    "StageRecommendButton": {
+        "recognition": "And", "all_of": [
+            "SoloStageReady", {"recognition": "OCR", "roi": [140, 365, 147, 50], "expected": "^推荐编组$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 600, "next": ["StageRecommendationDone"], "timeout": 5000
+    },
+    "StagePrepareChart": {"next": ["StageBandForChart"], "timeout": 8000},
+    "StageBandForChart": {
+        "recognition": "And", "all_of": ["SoloStageReady", "PlayBandSongTitle", "PlayBandDifficulty", "PlayAutoOff"],
+        "next": ["SingleReadSong"], "timeout": 8000
+    },
+    "StageStart": {
+        "recognition": "And", "all_of": ["StageBandForChart", "PlayStartButton", "PlayPresentationOff"],
+        "box_index": 1, "action": "Click", "next": ["StageRosterMismatch", "StageAreaItemsPrompt", "playsongsingle"], "timeout": 45000
+    },
+    "StageRosterMismatch": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [387, 228, 173, 41], "expected": "^成员确认$"},
+            {"recognition": "OCR", "roi": [460, 291, 352, 37], "expected": "^编成的成员与条件不符合[。.]?$"},
+            {"recognition": "OCR", "roi": [521, 414, 239, 67], "expected": "^确定$"}
+        ],
+        "box_index": 2
+    },
+    "StageCloseRosterMismatch": {
+        "recognition": "And", "all_of": ["StageRosterMismatch"],
+        "action": "Click", "post_delay": 700, "next": ["SoloStageReady"], "timeout": 6000
+    },
+    "StageAreaItemsApply": {"recognition": "OCR", "roi": [651, 492, 236, 64], "expected": "^确认更换$"},
+    "StageAreaItemsCancel": {"recognition": "OCR", "roi": [391, 492, 236, 64], "expected": "^取消$"},
+    "StageAreaItemsPrompt": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [382, 151, 225, 43], "expected": "^确认区域道具$"},
+            "StageAreaItemsApply", "StageAreaItemsCancel"
+        ]
+    },
+    "StageConfirmAreaItems": {
+        "recognition": "And", "all_of": ["StageAreaItemsPrompt", "StageAreaItemsApply"],
+        "box_index": 1, "action": "Click", "post_delay": 300, "max_hit": 1
+    },
+    "StageCancelAreaItems": {
+        "recognition": "And", "all_of": ["StageAreaItemsPrompt", "StageAreaItemsCancel"],
+        "box_index": 1, "action": "Click", "post_delay": 700, "next": ["SoloStageReady"], "timeout": 5000
+    },
+    "StageRewardOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [388, 80, 427, 41], "expected": "^舞台挑战达成报酬获得$"},
+            {"recognition": "OCR", "roi": [529, 502, 224, 45], "expected": "^获得了报酬[！!]?$"},
+            {"recognition": "OCR", "roi": [520, 567, 242, 70], "expected": "^OK$"}
+        ],
+        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 4
+    },
+    "StageSettle": {
+        "next": [
+            "DailyLiveStats", "PlayFailureVisible", "[JumpBack]StageRewardOK",
+            "[JumpBack]DailyLiveStoryUnlockOK", "[JumpBack]DailyLiveLargeRewardOK",
+            "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"
+        ],
+        "timeout": 45000
+    },
+    "StageReturn": {
+        "next": [
+            "StageSettlementDone", "[JumpBack]StageRewardOK", "[JumpBack]DailyLiveStoryUnlockOK",
+            "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardList",
+            "[JumpBack]DailyLiveRewardNext", "[JumpBack]DailyLiveRankUp",
+            "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
+            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip",
+            "[JumpBack]StageRetryConnection"
+        ],
+        "timeout": 60000
+    },
+    "StageRetryConnection": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [531, 321, 222, 37], "expected": "^连接中断[。.]?$"},
+            {"recognition": "OCR", "roi": [652, 552, 236, 65], "expected": "^重试$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 850, "max_hit": 1
+    },
+    "StageSettlementDone": {
+        "recognition": "Or", "any_of": ["SoloConfirmStage", "SoloStageCatalog", "StartupHomeReady"]
+    }
+}

@@ -11,7 +11,7 @@
     "welcome": "首次使用！欢迎使用 MAautodori!",
     // 填写项目地址和版本号可实现自动更新功能
     "github": "https://github.com/Evan-Fantasque/MAautodori",
-    "version": "v1.3.1",
+    "version": "v1.4.0",
     // Mirror酱为第三方分发服务，新项目默认关闭
     // 若有需要请联系 Mirror酱 开通，直接自行开启是无法使用的
     // "mirrorchyan_rid": "MaaXXX",
@@ -63,7 +63,11 @@
         {
             "name": "单人演出准备（停在开打前）",
             "entry": "SoloPrepare",
-            "option": ["单人模式"]
+            "option": ["单人模式"],
+            "pipeline_override": {
+                "SoloFreeReady": {"next": ["PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"], "timeout": 5500},
+                "SoloStageReady": {"next": ["PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"], "timeout": 5500}
+            }
         },
         {
             "name": "自由演出（单曲）",
@@ -74,6 +78,12 @@
             "entry": "ChallengeLive",
             "description": "循环进行活动单人挑战演出。每场结算后重新读取所持挑战点数。",
             "option": ["挑战曲目", "难度", "挑战点数档", "点数不足时"]
+        },
+        {
+            "name": "舞台挑战（单场）",
+            "entry": "StageChallenge",
+            "description": "从主菜单进入舞台挑战，也可接续已选关或已编队的页面。按当前关卡、难度和用火设置打一场。",
+            "option": ["舞台类型", "舞台推荐编组", "舞台区域道具"]
         },
         {
             "name": "每日清火＋免费三抽",
@@ -94,7 +104,6 @@
         },
         {
             "name": "自由演出（挖矿）",
-            "label": "自由演出（挖矿）（可靠性未验证）",
             "entry": "select_song",
             "option": ["检查火焰"]
         },
@@ -117,17 +126,50 @@
     "option": {
         "打歌触控链路": {
             "type": "select",
-            "description": "用于自由演出（单曲）、挑战演出及每日清火的打歌环节。EvATive7 使用设备执行反馈补偿延迟。",
-            "default_case": "MaaFramework",
+            "description": "用于自由演出、挑战演出、舞台挑战及每日清火的打歌环节。EvATive7 使用设备执行反馈补偿延迟。",
+            "default_case": "EvATive7",
             "cases": [
-                {"name": "MaaFramework", "label": "MaaFramework（默认）", "pipeline_override": {"SingleReadSong": {"custom_action_param": {"touch_backend": "maafw"}}}},
-                {"name": "EvATive7", "label": "EvATive7 Minitouch（延迟补偿）", "pipeline_override": {"SingleReadSong": {"custom_action_param": {"touch_backend": "legacy"}}}}
+                {"name": "EvATive7", "label": "EvATive7 Minitouch（默认，延迟补偿）", "pipeline_override": {
+                    "SingleReadSong": {"custom_action_param": {"touch_backend": "legacy"}},
+                    "MiningReadSong": {"custom_action_param": {"touch_backend": "legacy"}}
+                }},
+                {"name": "MaaFramework", "label": "MaaFramework", "pipeline_override": {
+                    "SingleReadSong": {"custom_action_param": {"touch_backend": "maafw"}},
+                    "MiningReadSong": {"custom_action_param": {"touch_backend": "maafw"}}
+                }}
             ]
         },
         "挑战曲目": {
             "type": "input",
             "inputs": [{"name": "song", "label": "完整曲名（留空沿用当前曲目）", "default": ""}],
             "pipeline_override": {"ChallengeLive": {"custom_action_param": {"title": "{song}"}}}
+        },
+        "舞台类型": {
+            "type": "select",
+            "description": "从主菜单进入时选择目录。已在舞台选关或编队页时沿用当前关卡。",
+            "default_case": "主舞台",
+            "cases": [
+                {"name": "主舞台", "pipeline_override": {"StageChallenge": {"attach": {"special": false}}}},
+                {"name": "特别舞台", "pipeline_override": {"StageChallenge": {"attach": {"special": true}}}}
+            ]
+        },
+        "舞台推荐编组": {
+            "type": "switch",
+            "description": "开演前使用游戏的舞台推荐编组。关闭时沿用当前乐队。",
+            "default_case": "No",
+            "cases": [
+                {"name": "Yes", "pipeline_override": {"StageChallenge": {"attach": {"recommend": true}}}},
+                {"name": "No"}
+            ]
+        },
+        "舞台区域道具": {
+            "type": "switch",
+            "description": "游戏提示时确认更换为推荐区域道具，会改变当前道具摆放。关闭时停在确认窗口。",
+            "default_case": "No",
+            "cases": [
+                {"name": "Yes", "pipeline_override": {"StageChallenge": {"attach": {"change_area_items": true}}}},
+                {"name": "No"}
+            ]
         },
         "清火设置": {
             "type": "input",

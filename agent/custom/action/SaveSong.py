@@ -4,6 +4,7 @@ import re
 import subprocess
 from maa.custom_action import CustomAction
 from maa.context import Context
+from ..utils.MaaUI import reached
 from ..utils.StateCore import global_state, init_player_and_mnt
 from ..utils.chart import Chart
 
@@ -60,6 +61,9 @@ class SaveSong(CustomAction):
             # Both selectable backends take difficulty from the same band screen.
             # Older tasks without a backend parameter still use their configured difficulty.
             if backend is not None:
+                if not reached(context, "PlayPreparePresentation", "PlayPresentationOff", reset_hits=("PlayPresentationEnabled",)):
+                    logger.error("未能确认演奏模式为 OFF，本次演出未开始")
+                    return self.RunResult(success=False)
                 screen = context.tasker.controller.post_screencap().wait().get()
                 if screen is None or not screen.size:
                     logger.error("无法读取编队页面")

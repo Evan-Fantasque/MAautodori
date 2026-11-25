@@ -69,7 +69,7 @@
     "ChallengeStart": {
         "recognition": "And", "all_of": [
             "ChallengeBandForChart",
-            {"recognition": "OCR", "roi": [1013, 616, 232, 68], "expected": "^演出开始$"}
+            "PlayStartButton", "PlayPresentationOff"
         ],
         "box_index": 1, "action": "Click", "next": ["playsongsingle"]
     },

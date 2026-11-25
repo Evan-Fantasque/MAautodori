@@ -178,7 +178,7 @@
         },
         "timeout": 15000,
         "next": [
-            "MedleyStartLive"
+            "MedleyStartLive", "[JumpBack]PlayPresentationEnabled"
         ],
         "$__mpe_code": {
             "position": {
@@ -188,20 +188,12 @@
         }
     },
     "MedleyStartLive": {
-        "recognition": {
-            "type": "OCR",
-            "param": {
-                "roi": [
-                    1060,
-                    625,
-                    134,
-                    40
-                ],
-                "expected": [
-                    "第[123]曲开始"
-                ]
-            }
-        },
+        "recognition": "And",
+        "all_of": [
+            {"recognition": "OCR", "roi": [1060, 625, 134, 40], "expected": "第[123]曲开始"},
+            "PlayPresentationOff"
+        ],
+        "box_index": 0,
         "pre_wait_freezes": {
             "time": 3000,
             "threshold": 0.65
@@ -240,6 +232,8 @@
         }
     },
     "MedleyEntry": {
+        "timeout": 8000,
+        "on_error": ["MedleyUnavailable"],
         "next": [
             "MedleyFrontPage",
             "MedleySongSelectPage",
@@ -251,6 +245,10 @@
                 "y": -15
             }
         }
+    },
+    "MedleyUnavailable": {
+        "action": "StopTask",
+        "focus": {"Node.Action.Starting": "未找到巡回演出页面。请在巡回活动开放时进入活动页面，再运行任务。"}
     },
     "MedleyFrontPage": {
         "recognition": {

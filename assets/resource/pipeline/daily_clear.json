@@ -84,12 +84,12 @@
     "DailyResumeSettlement": {
         "recognition": "Or", "any_of": [
             "DailyLiveStats", "DailyLiveRewardNext", "DailyLiveRewardOK", "DailyLiveLargeRewardOK",
-            "DailyLiveExpNext", "DailyLivePointsOK", "DailyLiveRewardList", "DailyLiveRankUp"
+            "DailyLiveStoryUnlockOK", "DailyLiveExpNext", "DailyLivePointsOK", "DailyLiveRewardList", "DailyLiveRankUp"
         ]
     },
     "DailySettleBack": {
         "next": [
-            "DailyLobby", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
+            "DailyLobby", "[JumpBack]DailyLiveStoryUnlockOK", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
             "[JumpBack]DailyLiveRewardList", "[JumpBack]DailyLiveRewardNext",
             "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
@@ -133,10 +133,17 @@
     },
     "DailyLivePointsOK": {
         "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [101, 290, 186, 52], "expected": "^获得活动点数$"},
+            {"recognition": "OCR", "roi": [101, 285, 186, 126], "expected": "^获得活动点数$"},
             {"recognition": "OCR", "roi": [951, 614, 232, 67], "expected": "^确定$"}
         ],
         "box_index": 1, "action": "Click", "post_delay": 850, "max_hit": 2
+    },
+    "DailyLiveStoryUnlockOK": {
+        "recognition": "And", "all_of": [
+            {"recognition": "OCR", "roi": [383, 86, 235, 52], "expected": "^解锁活动故事$"},
+            {"recognition": "OCR", "roi": [514, 543, 252, 82], "expected": "^确定$"}
+        ],
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 8
     },
     "DailyLiveRewardOK": {
         "recognition": "And", "all_of": [
@@ -147,7 +154,7 @@
     },
     "DailyLiveRewardList": {
         "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [195, 48, 530, 48], "expected": "达成报酬一览$"},
+            {"recognition": "OCR", "roi": [195, 48, 907, 48], "expected": "达成报酬[一ー]览$"},
             {"recognition": "OCR", "roi": [528, 603, 228, 47], "expected": "^关闭$"}
         ],
         "box_index": 1, "action": "Click", "post_delay": 600, "max_hit": 2

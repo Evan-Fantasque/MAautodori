@@ -9,7 +9,7 @@ from ..utils.SongSelection import DIFFICULTIES, exact_title_pattern, select_song
 
 
 logger = logging.getLogger(__name__)
-LIVE_REWARD_NODES = ("DailyLiveLargeRewardOK", "DailyLiveRewardOK", "DailyLiveRewardNext")
+LIVE_REWARD_NODES = ("DailyLiveLargeRewardOK", "DailyLiveRewardOK", "DailyLiveRewardNext", "DailyLiveStoryUnlockOK")
 
 
 def choose_boost(balance, regular, max_available):
@@ -120,8 +120,7 @@ def _play(context, title, difficulty, preview):
         "startlivesingle": {
             "all_of": [
                 "SingleFreeBand",
-                {"recognition": "OCR", "roi": [1020, 621, 220, 62], "expected": "^演出开始$"},
-                "PlayBandSongTitle", "DailyBoostBefore", "DailyBoostAfter",
+                "PlayStartButton", "PlayPresentationOff", "PlayBandSongTitle", "DailyBoostBefore", "DailyBoostAfter",
             ],
         },
     }
