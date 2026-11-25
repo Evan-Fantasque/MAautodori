@@ -59,7 +59,6 @@ def _find_visible(context, image, title):
 
 def _search_list(context, title, list_node):
     deadline = time.monotonic() + 150
-    controller = context.tasker.controller
     expected = title_key(title)
     for direction in (-1, 1):
         previous = None
@@ -88,9 +87,12 @@ def _search_list(context, title, list_node):
                 stalls = 0
             previous = content.copy()
             start, end = 350 + direction * 150, 350 - direction * 150
-            if not controller.post_swipe(390, start, 390, end, 360).wait().succeeded:
+            # Capturing the screen replaces the Agent's controller handle. Run the swipe on the host.
+            swipe = context.run_action("SongPickerScroll", pipeline_override={
+                "SongPickerScroll": {"begin": [390, start], "end": [390, end]}
+            })
+            if not swipe or not swipe.success:
                 return False
-            time.sleep(0.4)
     return False
 
 
