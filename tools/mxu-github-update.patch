@@ -1,0 +1,860 @@
+diff --git a/src-tauri/src/commands/portable_update.rs b/src-tauri/src/commands/portable_update.rs
+new file mode 100644
+index 0000000..9ec6ebf
+--- /dev/null
++++ b/src-tauri/src/commands/portable_update.rs
+@@ -0,0 +1,466 @@
++//! GitHub portable updates for the MAautodori Windows distribution.
++
++use super::{
++    apply_full_update, is_interface_file, move_to_old_folder_in_dir, retry_file_op,
++    FullUpdateJournal, OLD_DIR_LOCK,
++};
++use crate::commands::{types::MaaState, utils::get_exe_directory};
++use serde::Deserialize;
++use sha2::{Digest, Sha256};
++use std::{
++    collections::{BTreeMap, BTreeSet},
++    fs::{self, File},
++    io,
++    path::{Path, PathBuf},
++};
++use tauri::Manager;
++
++const PREFIX: &str = "MAautodori-win-x64-";
++const PROJECT: &str = "https://github.com/Evan-Fantasque/MAautodori";
++const ROOT_FILES: &[&str] = &[
++    "interface.json",
++    "mxu.exe",
++    "LICENSE",
++    "README.md",
++    "requirements.txt",
++];
++const ROOT_DIRS: &[&str] = &["agent", "licenses", "maafw", "python", "resource", "share"];
++
++#[derive(Deserialize)]
++struct Interface {
++    version: String,
++    github: String,
++}
++
++#[derive(Deserialize)]
++struct Changes {
++    base_version: String,
++    target_version: String,
++    deleted: Vec<String>,
++    base: BTreeMap<String, String>,
++    files: BTreeMap<String, String>,
++}
++
++fn result<T>(value: Result<T, impl std::fmt::Display>) -> Result<T, String> {
++    value.map_err(|err| err.to_string())
++}
++
++fn managed(name: &str) -> bool {
++    if name.contains(['\\', ':', '\0'])
++        || name.split('/').any(|part| {
++            part.is_empty()
++                || part.ends_with(['.', ' '])
++                || matches!(
++                    part.split('.')
++                        .next()
++                        .unwrap_or_default()
++                        .to_ascii_uppercase()
++                        .as_str(),
++                    "CON"
++                        | "PRN"
++                        | "AUX"
++                        | "NUL"
++                        | "CONIN$"
++                        | "CONOUT$"
++                        | "COM1"
++                        | "COM2"
++                        | "COM3"
++                        | "COM4"
++                        | "COM5"
++                        | "COM6"
++                        | "COM7"
++                        | "COM8"
++                        | "COM9"
++                        | "LPT1"
++                        | "LPT2"
++                        | "LPT3"
++                        | "LPT4"
++                        | "LPT5"
++                        | "LPT6"
++                        | "LPT7"
++                        | "LPT8"
++                        | "LPT9"
++                )
++        })
++    {
++        return false;
++    }
++    name.split_once('/').map_or_else(
++        || ROOT_FILES.contains(&name),
++        |(root, _)| ROOT_DIRS.contains(&root),
++    )
++}
++
++fn local_path(root: &Path, name: &str) -> Result<PathBuf, String> {
++    let mut path = root.to_owned();
++    for part in name.split('/') {
++        path.push(part);
++        match fs::symlink_metadata(&path) {
++            Ok(meta) => {
++                #[cfg(windows)]
++                {
++                    use std::os::windows::fs::MetadataExt;
++                    if meta.file_attributes() & 0x400 != 0 {
++                        return Err(format!("Update path is a reparse point: {name}"));
++                    }
++                }
++                if meta.file_type().is_symlink() {
++                    return Err(format!("Update path is a symbolic link: {name}"));
++                }
++            }
++            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
++            Err(err) => return Err(err.to_string()),
++        }
++    }
++    Ok(path)
++}
++
++fn file_hash(path: &Path) -> Result<String, String> {
++    let mut reader = result(File::open(path))?;
++    let mut hash = Sha256::new();
++    result(io::copy(&mut reader, &mut hash))?;
++    Ok(format!("{:x}", hash.finalize()))
++}
++
++fn check_interface(path: &Path, version: &str) -> Result<(), String> {
++    let file = result(File::open(path))?;
++    let interface: Interface = result(serde_json::from_reader(file))?;
++    if interface.version != version || interface.github != PROJECT {
++        return Err("The installed or target version does not match the update".into());
++    }
++    Ok(())
++}
++
++fn extract(
++    zip_file: &Path,
++    stage: &Path,
++    full_prefix: Option<&str>,
++) -> Result<BTreeSet<String>, String> {
++    let mut archive = result(zip::ZipArchive::new(result(File::open(zip_file))?))?;
++    let mut names = BTreeSet::new();
++    let mut windows_names = BTreeSet::new();
++    for index in 0..archive.len() {
++        let mut member = result(archive.by_index(index))?;
++        let name = match full_prefix {
++            Some(prefix) => member
++                .name()
++                .strip_prefix(prefix)
++                .ok_or("Wrong portable archive root")?,
++            None => member.name(),
++        };
++        if member.is_dir() {
++            continue;
++        }
++        if !(managed(name) || (full_prefix.is_none() && name == "changes.json"))
++            || !windows_names.insert(name.to_lowercase())
++            || member
++                .unix_mode()
++                .is_some_and(|mode| mode & 0o170000 == 0o120000)
++        {
++            return Err(format!("Invalid update archive member: {name}"));
++        }
++        let path = stage.join(name);
++        result(fs::create_dir_all(
++            path.parent().ok_or("Missing archive parent")?,
++        ))?;
++        let mut dest = result(File::create(path))?;
++        names.insert(name.to_owned());
++        result(io::copy(&mut member, &mut dest))?;
++    }
++    Ok(names)
++}
++
++fn apply_delta(
++    target: &Path,
++    stage: &Path,
++    backups: &Path,
++    names: BTreeSet<String>,
++    from: &str,
++    to: &str,
++) -> Result<(), String> {
++    let manifest: Changes = result(serde_json::from_reader(result(File::open(
++        stage.join("changes.json"),
++    ))?))?;
++    let deleted: BTreeSet<_> = manifest.deleted.iter().collect();
++    if manifest.base_version != from
++        || manifest.target_version != to
++        || !manifest.files.contains_key("interface.json")
++        || names
++            .iter()
++            .filter(|name| name.as_str() != "changes.json")
++            .ne(manifest.files.keys())
++        || deleted.len() != manifest.deleted.len()
++        || deleted
++            .iter()
++            .any(|name| !manifest.base.contains_key(*name) || manifest.files.contains_key(*name))
++        || manifest
++            .base
++            .keys()
++            .chain(manifest.files.keys())
++            .any(|name| !managed(name))
++    {
++        return Err("The incremental manifest does not match this update".into());
++    }
++
++    for (name, expected) in &manifest.base {
++        if file_hash(&local_path(target, name)?)? != *expected {
++            return Err(format!(
++                "Installed file differs from the incremental base: {name}"
++            ));
++        }
++    }
++    for (name, expected) in &manifest.files {
++        if file_hash(&stage.join(name))? != *expected {
++            return Err(format!("Invalid incremental file hash: {name}"));
++        }
++        if !manifest.base.contains_key(name) && local_path(target, name)?.exists() {
++            return Err(format!(
++                "A new program file would replace a local file: {name}"
++            ));
++        }
++    }
++
++    let mut touched: Vec<_> = manifest
++        .deleted
++        .iter()
++        .chain(manifest.files.keys())
++        .collect();
++    touched.sort_by_key(|name| is_interface_file(std::ffi::OsStr::new(name.as_str())));
++    let _guard = OLD_DIR_LOCK.lock().unwrap_or_else(|err| err.into_inner());
++    let mut journal = FullUpdateJournal::default();
++    let apply = (|| -> Result<(), String> {
++        for name in touched {
++            let dest = local_path(target, name)?;
++            if let Some(backup) = retry_file_op(name, || move_to_old_folder_in_dir(&dest, backups))?
++            {
++                journal.moved.push((dest.clone(), backup));
++            }
++            if let Some(expected) = manifest.files.get(name) {
++                result(fs::create_dir_all(
++                    dest.parent().ok_or("Missing destination parent")?,
++                ))?;
++                journal.copied.push(dest.clone());
++                result(fs::copy(stage.join(name), &dest))?;
++                if file_hash(&dest)? != *expected {
++                    return Err(format!("File changed while installing: {name}"));
++                }
++            }
++        }
++        Ok(())
++    })();
++    if let Err(err) = apply {
++        if !journal.rollback() {
++            return Err(format!("ROLLBACK_FAILED: {err}"));
++        }
++        return Err(err);
++    }
++    Ok(())
++}
++
++#[tauri::command]
++pub async fn maautodori_apply_update(
++    app: tauri::AppHandle,
++    zip_path: String,
++    digest: String,
++    from: String,
++    to: String,
++    incremental: bool,
++) -> Result<(), String> {
++    tauri::async_runtime::spawn_blocking(move || {
++        if !cfg!(target_os = "windows") {
++            return Err("This portable update requires Windows".into());
++        }
++        let parse = |value: &str| semver::Version::parse(value.trim_start_matches('v'));
++        if result(parse(&to))? <= result(parse(&from))? {
++            return Err("Update target must be newer than the installed version".into());
++        }
++        let target = get_exe_directory()?;
++        let current = local_path(&target, "interface.json")?;
++        check_interface(&current, &from)?;
++        let cache = local_path(&target, "cache")?;
++        let backups = local_path(&cache, "old")?;
++        let zip_path = PathBuf::from(zip_path);
++        let filename = if incremental {
++            format!("{PREFIX}{from}-to-{to}.delta.zip")
++        } else {
++            format!("{PREFIX}{to}.zip")
++        };
++        let local_zip = local_path(&cache, &filename)?;
++        if result(zip_path.canonicalize())? != result(local_zip.canonicalize())?
++            || digest.strip_prefix("sha256:") != Some(file_hash(&local_zip)?.as_str())
++        {
++            return Err("The downloaded update failed SHA-256 verification".into());
++        }
++        let temp = result(tempfile::tempdir_in(&cache))?;
++        let prefix = format!("{PREFIX}{to}/");
++        let stage = temp.path();
++        let names = extract(&local_zip, stage, (!incremental).then_some(prefix.as_str()))?;
++        check_interface(&stage.join("interface.json"), &to)?;
++        let state = app.state::<MaaState>();
++        let instances = state
++            .instances
++            .lock()
++            .unwrap_or_else(|err| err.into_inner());
++        if instances.values().any(|value| value.is_running()) {
++            return Err("UPDATE_BUSY".into());
++        }
++        check_interface(&current, &from)?;
++        if incremental {
++            apply_delta(&target, stage, &backups, names, &from, &to)?;
++        } else {
++            if !ROOT_FILES.iter().all(|name| names.contains(*name))
++                || ![
++                    "agent/main.py",
++                    "python/python.exe",
++                    "maafw/MaaFramework.dll",
++                ]
++                .iter()
++                .all(|name| names.contains(*name))
++            {
++                return Err("The complete portable archive is missing runtime files".into());
++            }
++            apply_full_update(
++                stage.to_string_lossy().into_owned(),
++                target.to_string_lossy().into_owned(),
++            )
++            .map_err(|err| {
++                if err.rolled_back {
++                    err.message
++                } else {
++                    format!("ROLLBACK_FAILED: {}", err.message)
++                }
++            })?;
++        }
++        drop(instances);
++        // Installation has already committed. Failure to clean a cached ZIP does not undo it.
++        let _ = fs::remove_file(local_zip);
++        Ok(())
++    })
++    .await
++    .map_err(|err| err.to_string())?
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn full_package_unwraps_and_preserves_user_files() {
++        let temp = tempfile::tempdir().unwrap();
++        let root = temp.path();
++        let target = root.join("installed");
++        let stage = root.join("stage");
++        fs::create_dir_all(target.join("config")).unwrap();
++        fs::create_dir_all(target.join("charts")).unwrap();
++        fs::create_dir_all(target.join("data")).unwrap();
++
++        let preserved = [
++            "config/settings.json",
++            "charts/local.bms",
++            "data/play_records.jsonl",
++        ];
++        for name in preserved {
++            fs::write(target.join(name), "personal").unwrap();
++        }
++
++        let zip = root.join("full.zip");
++        let assets = [
++            ("interface.json", "version"),
++            ("resource/test.json", "resource"),
++        ];
++        let mut writer = zip::ZipWriter::new(File::create(&zip).unwrap());
++        for (name, data) in assets {
++            use std::io::Write;
++            writer
++                .start_file(
++                    format!("{PREFIX}v1.5.0-rc.1/{name}"),
++                    zip::write::SimpleFileOptions::default(),
++                )
++                .unwrap();
++            writer.write_all(data.as_bytes()).unwrap();
++        }
++        writer.finish().unwrap();
++        let prefix = format!("{PREFIX}v1.5.0-rc.1/");
++        let names = extract(&zip, &stage, Some(&prefix)).unwrap();
++        assert_eq!(
++            names,
++            BTreeSet::from([
++                "interface.json".to_string(),
++                "resource/test.json".to_string()
++            ])
++        );
++        apply_full_update(
++            stage.to_string_lossy().into_owned(),
++            target.to_string_lossy().into_owned(),
++        )
++        .unwrap();
++        assert_eq!(
++            fs::read_to_string(target.join("resource/test.json")).unwrap(),
++            "resource"
++        );
++        assert_eq!(
++            fs::read_to_string(target.join("interface.json")).unwrap(),
++            "version"
++        );
++        for name in preserved {
++            assert_eq!(fs::read_to_string(target.join(name)).unwrap(), "personal");
++        }
++    }
++
++    #[test]
++    fn incremental_package_changes_only_listed_program_files() {
++        for drift in [false, true] {
++            let temp = tempfile::tempdir().unwrap();
++            let root = temp.path();
++            let target = root.join("installed");
++            let stage = root.join("stage");
++            fs::create_dir_all(target.join("resource")).unwrap();
++            fs::create_dir_all(target.join("config")).unwrap();
++            fs::create_dir_all(stage.join("resource")).unwrap();
++            fs::write(target.join("interface.json"), "old version").unwrap();
++            fs::write(target.join("resource/old.json"), "delete me").unwrap();
++            fs::write(target.join("config/settings.json"), "user data").unwrap();
++            fs::write(stage.join("interface.json"), "new version").unwrap();
++            fs::write(stage.join("resource/new.json"), "new data").unwrap();
++            let base: BTreeMap<_, _> = ["interface.json", "resource/old.json"]
++                .into_iter()
++                .map(|name| (name, file_hash(&target.join(name)).unwrap()))
++                .collect();
++            let files: BTreeMap<_, _> = ["interface.json", "resource/new.json"]
++                .into_iter()
++                .map(|name| (name, file_hash(&stage.join(name)).unwrap()))
++                .collect();
++            let manifest = serde_json::json!({
++                "base_version": "v1.4.1", "target_version": "v1.5.0-rc.1",
++                "deleted": ["resource/old.json"], "base": base, "files": files,
++            });
++            fs::write(stage.join("changes.json"), manifest.to_string()).unwrap();
++            if drift {
++                fs::write(target.join("resource/old.json"), "local edit").unwrap();
++            }
++            let names = ["changes.json", "interface.json", "resource/new.json"]
++                .into_iter()
++                .map(String::from)
++                .collect();
++            let response = apply_delta(
++                &target,
++                &stage,
++                &root.join("backup"),
++                names,
++                "v1.4.1",
++                "v1.5.0-rc.1",
++            );
++            assert_eq!(response.is_err(), drift, "{response:?}");
++            assert_eq!(
++                fs::read_to_string(target.join("interface.json")).unwrap(),
++                if drift { "old version" } else { "new version" }
++            );
++            assert_eq!(target.join("resource/old.json").exists(), drift);
++            assert_eq!(target.join("resource/new.json").exists(), !drift);
++            assert_eq!(
++                fs::read_to_string(target.join("config/settings.json")).unwrap(),
++                "user data"
++            );
++        }
++    }
++}
+diff --git a/src-tauri/src/commands/update.rs b/src-tauri/src/commands/update.rs
+index c1865be..1d6d250 100644
+--- a/src-tauri/src/commands/update.rs
++++ b/src-tauri/src/commands/update.rs
+@@ -12,6 +12,9 @@ use serde::Serialize;
+ use super::types::ChangesJson;
+ use super::utils::{get_app_data_dir, get_exe_directory};
+
++#[path = "portable_update.rs"]
++pub mod portable;
++
+ /// 包内覆盖更新会破坏资源封印和宿主通知身份，必须使用完整应用包安装流程。
+ #[tauri::command]
+ pub fn validate_update_target(target_dir: String) -> Result<(), String> {
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 25b0e01..f159006 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -316,6 +316,7 @@ pub fn run() {
+             commands::update::check_changes_json,
+             commands::update::apply_incremental_update,
+             commands::update::apply_full_update,
++            commands::update::portable::maautodori_apply_update,
+             commands::update::cleanup_extract_dir,
+             commands::update::fallback_update,
+             commands::update::move_file_to_old,
+diff --git a/src/components/SettingsPage.tsx b/src/components/SettingsPage.tsx
+index 2fe3800..4afb0c7 100644
+--- a/src/components/SettingsPage.tsx
++++ b/src/components/SettingsPage.tsx
+@@ -25,6 +25,8 @@ import type { InterfaceSettingSection, ProjectInterface } from '@/types/interfac
+ import { loadIconAsDataUrl } from '@/services/contentResolver';
+ import { ConfirmDialog } from './ConfirmDialog';
+ import { OptionEditor } from './OptionEditor';
++import { GithubPortableUpdate } from './settings/GithubPortableUpdate';
++import { portableProject } from '@/services/githubPortableUpdate';
+ import {
+   AppearanceSection,
+   HotkeySection,
+@@ -264,6 +266,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
+     }));
+   }, [projectInterface?.setting, interfaceTranslations, langKey]);
+
++  const githubPortable = projectInterface?.github === portableProject && !!projectInterface.version;
++
+   // 目录索引配置
+   const tocItems = useMemo(() => {
+     const items = [{ id: 'appearance', icon: Paintbrush, labelKey: 'settings.appearance' }];
+@@ -273,7 +277,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
+     items.push({ id: 'general', icon: Settings2, labelKey: 'settings.general' });
+     items.push({ id: 'hotkeys', icon: Keyboard, labelKey: 'settings.hotkeys' });
+     items.push({ id: 'webserver', icon: Globe, labelKey: 'webserver.title' });
+-    if (projectInterface?.mirrorchyan_rid) {
++    if (githubPortable || projectInterface?.mirrorchyan_rid) {
+       items.push({ id: 'update', icon: Download, labelKey: 'mirrorChyan.title' });
+     }
+     items.push(
+@@ -281,7 +285,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
+       { id: 'about', icon: Info, labelKey: 'about.title' },
+     );
+     return items;
+-  }, [projectInterface?.mirrorchyan_rid, settingsSections.length]);
++  }, [githubPortable, projectInterface?.mirrorchyan_rid, settingsSections.length]);
+
+   // 当前高亮的 section
+   const [activeSection, setActiveSection] = useState('appearance');
+@@ -517,7 +521,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
+             <WebServerSection />
+
+             {/* MirrorChyan 更新设置 */}
+-            <UpdateSection />
++            {githubPortable && projectInterface?.version ? (
++              <GithubPortableUpdate version={projectInterface.version} />
++            ) : (
++              <UpdateSection />
++            )}
+
+             {/* 调试 */}
+             <DebugSection />
+diff --git a/src/components/settings/GithubPortableUpdate.tsx b/src/components/settings/GithubPortableUpdate.tsx
+new file mode 100644
+index 0000000..76ae818
+--- /dev/null
++++ b/src/components/settings/GithubPortableUpdate.tsx
+@@ -0,0 +1,184 @@
++import { useRef, useState } from 'react';
++import { useTranslation } from 'react-i18next';
++import { Download } from 'lucide-react';
++import { invoke } from '@tauri-apps/api/core';
++import { useAppStore } from '@/stores/appStore';
++import type { DownloadProgress } from '@/stores/types';
++import { checkPortableUpdate, type PortableUpdate } from '@/services/githubPortableUpdate';
++import {
++  downloadUpdate,
++  getUpdateSavePath,
++  isDebugVersion,
++  restartApp,
++} from '@/services/updateService';
++import { DownloadProgressBar, ReleaseNotes, VersionInfo } from '../UpdateInfoCard';
++import { loggers } from '@/utils/logger';
++
++type Phase = 'checking' | 'downloading' | 'installing' | 'done';
++
++export function GithubPortableUpdate({ version }: { version: string }) {
++  const { t } = useTranslation();
++  const channel = useAppStore((state) => state.mirrorChyanSettings.channel);
++  const setChannel = useAppStore((state) => state.setMirrorChyanChannel);
++  const proxy = useAppStore((state) => state.proxySettings);
++  const [update, setUpdate] = useState<PortableUpdate | null>();
++  const [phase, setPhase] = useState<Phase>();
++  const [progress, setProgress] = useState<DownloadProgress | null>(null);
++  const [detail, setDetail] = useState<string>();
++  const [error, setError] = useState<string>();
++  const active = useRef(false);
++  const busy = phase !== undefined && phase !== 'done';
++
++  async function check() {
++    if (active.current) return;
++    active.current = true;
++    setPhase('checking');
++    setError(undefined);
++    setDetail(undefined);
++    setUpdate(undefined);
++    try {
++      setUpdate(await checkPortableUpdate(version, channel !== 'stable', proxy?.url));
++    } catch (err) {
++      setError(`${t('mirrorChyan.checkFailed')} (${String(err)})`);
++    } finally {
++      active.current = false;
++      setPhase(undefined);
++    }
++  }
++
++  async function install() {
++    if (!update || active.current) return;
++    active.current = true;
++    setError(undefined);
++    try {
++      for (const asset of update.delta ? [update.delta, update.full] : [update.full]) {
++        const incremental = asset === update.delta;
++        setDetail(incremental ? 'incremental' : 'full');
++        setProgress(null);
++        setPhase('downloading');
++        try {
++          const downloaded = await downloadUpdate({
++            url: asset.browser_download_url,
++            savePath: await getUpdateSavePath(asset.name),
++            totalSize: asset.size,
++            proxySettings: proxy,
++            onProgress: setProgress,
++          });
++          if (!downloaded.success || !downloaded.actualSavePath) {
++            throw new Error(t('mirrorChyan.downloadFailed'));
++          }
++          setPhase('installing');
++          await invoke('maautodori_apply_update', {
++            zipPath: downloaded.actualSavePath,
++            digest: asset.digest,
++            from: version,
++            to: update.version,
++            incremental,
++          });
++          setPhase('done');
++          return;
++        } catch (err) {
++          const reason = String(err);
++          if (!incremental || reason.includes('UPDATE_BUSY') || reason.includes('ROLLBACK_FAILED'))
++            throw err;
++          loggers.ui.warn('Incremental update failed; downloading the full package', err);
++        }
++      }
++    } catch (err) {
++      const reason = String(err);
++      setError(
++        reason.includes('UPDATE_BUSY')
++          ? t('maautodoriUpdate.busy')
++          : `${t('mirrorChyan.installFailed')} (${reason})`,
++      );
++      setPhase(undefined);
++    } finally {
++      active.current = false;
++    }
++  }
++
++  const button = 'px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-50';
++  return (
++    <section id="section-update" className="space-y-4 scroll-mt-4">
++      <h2 className="text-sm font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
++        <Download className="w-4 h-4" />
++        {t('mirrorChyan.title')}
++      </h2>
++      <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
++        {isDebugVersion(version) ? (
++          <p>{t('mirrorChyan.debugModeNotice')}</p>
++        ) : (
++          <>
++            <label className="flex items-center gap-3">
++              {t('mirrorChyan.channel')}
++              <select
++                value={channel}
++                disabled={busy || phase === 'done'}
++                onChange={(event) => {
++                  setChannel(event.target.value === 'stable' ? 'stable' : 'beta');
++                  setUpdate(undefined);
++                  setError(undefined);
++                }}
++                className="rounded-lg bg-bg-tertiary px-3 py-2"
++              >
++                <option value="stable">{t('mirrorChyan.channelStable')}</option>
++                <option value="beta">{t('mirrorChyan.channelBeta')}</option>
++              </select>
++            </label>
++            {update && (
++              <>
++                <VersionInfo
++                  currentVersion={version}
++                  latestVersion={update.version}
++                  channel={channel}
++                />
++                <ReleaseNotes releaseNote={update.notes} />
++              </>
++            )}
++            {phase === 'downloading' && (
++              <DownloadProgressBar
++                downloadStatus="downloading"
++                downloadProgress={progress}
++                showActions={false}
++              />
++            )}
++            {detail && (
++              <p role="status">
++                {t(`mirrorChyan.installStages.${detail}`)}
++                {phase === 'installing' ? ` · ${t('mirrorChyan.installing')}` : ''}
++              </p>
++            )}
++            {phase === 'done' && <p role="status">{t('mirrorChyan.restartRequired')}</p>}
++            {update === null && <p role="status">{t('mirrorChyan.upToDate', { version })}</p>}
++            {error && (
++              <p role="alert" className="text-error text-sm">
++                {error}
++              </p>
++            )}
++            {phase === 'done' ? (
++              <button
++                className={button}
++                onClick={() => {
++                  void restartApp().catch((err) => setError(String(err)));
++                }}
++              >
++                {t('mirrorChyan.restartNow')}
++              </button>
++            ) : (
++              <div className="flex flex-wrap gap-2">
++                <button className={button} disabled={busy} onClick={() => void check()}>
++                  {t(phase === 'checking' ? 'mirrorChyan.checking' : 'mirrorChyan.checkUpdate')}
++                </button>
++                {update && (
++                  <button className={button} disabled={busy} onClick={() => void install()}>
++                    {t('maautodoriUpdate.downloadInstall')}
++                  </button>
++                )}
++              </div>
++            )}
++          </>
++        )}
++      </div>
++    </section>
++  );
++}
+diff --git a/src/i18n/locales/en-US.ts b/src/i18n/locales/en-US.ts
+index cd2989b..c710c23 100644
+--- a/src/i18n/locales/en-US.ts
++++ b/src/i18n/locales/en-US.ts
+@@ -763,6 +763,10 @@ export default {
+   },
+
+   // MirrorChyan Update
++  maautodoriUpdate: {
++    downloadInstall: 'Download and install',
++    busy: 'Wait for running tasks to finish before installing the update.',
++  },
+   mirrorChyan: {
+     title: 'Update',
+     debugModeNotice: 'Debug version detected, auto-update is disabled',
+diff --git a/src/i18n/locales/zh-CN.ts b/src/i18n/locales/zh-CN.ts
+index 284fcd3..39ea2db 100644
+--- a/src/i18n/locales/zh-CN.ts
++++ b/src/i18n/locales/zh-CN.ts
+@@ -721,6 +721,10 @@ export default {
+   },
+
+   // MirrorChyan 更新
++  maautodoriUpdate: {
++    downloadInstall: '下载并安装',
++    busy: '请等待任务结束后再安装更新。',
++  },
+   mirrorChyan: {
+     title: '更新',
+     debugModeNotice: '当前为调试版本，已禁用自动更新功能',
+diff --git a/src/services/githubPortableUpdate.ts b/src/services/githubPortableUpdate.ts
+new file mode 100644
+index 0000000..e2c3e9e
+--- /dev/null
++++ b/src/services/githubPortableUpdate.ts
+@@ -0,0 +1,83 @@
++import * as semver from 'semver';
++import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
++
++export const portableProject = 'https://github.com/Evan-Fantasque/MAautodori';
++const releaseApi = 'https://api.github.com/repos/Evan-Fantasque/MAautodori/releases';
++const prefix = 'MAautodori-win-x64-';
++const tagFormat = /^v\d+\.\d+\.\d+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$/;
++
++export interface PortableAsset {
++  name: string;
++  browser_download_url: string;
++  digest: string;
++  size: number;
++  state: string;
++}
++
++export interface PortableRelease {
++  tag_name: string;
++  draft: boolean;
++  prerelease: boolean;
++  body: string | null;
++  assets: PortableAsset[];
++}
++
++export interface PortableUpdate {
++  version: string;
++  notes: string;
++  full: PortableAsset;
++  delta?: PortableAsset;
++}
++
++export function selectPortableUpdate(
++  releases: PortableRelease[],
++  from: string,
++  previews: boolean,
++): PortableUpdate | null {
++  if (!tagFormat.test(from) || !semver.valid(from)) return null;
++  const candidates = releases.filter(
++    ({ tag_name, draft, prerelease }) =>
++      !draft &&
++      (previews || !prerelease) &&
++      tagFormat.test(tag_name) &&
++      semver.valid(tag_name) &&
++      semver.gt(tag_name, from),
++  );
++  candidates.sort((a, b) => semver.rcompare(a.tag_name, b.tag_name));
++  for (const release of candidates) {
++    const version = release.tag_name;
++    const findAsset = (name: string) =>
++      release.assets.find(
++        (asset) =>
++          asset.name === name &&
++          asset.state === 'uploaded' &&
++          asset.size > 0 &&
++          /^sha256:[a-f0-9]{64}$/.test(asset.digest) &&
++          asset.browser_download_url === `${portableProject}/releases/download/${version}/${name}`,
++      );
++    const full = findAsset(`${prefix}${version}.zip`);
++    if (!full) continue;
++    const delta = findAsset(`${prefix}${from}-to-${version}.delta.zip`);
++    return {
++      version,
++      notes: release.body || '',
++      full,
++      delta: delta && delta.size < full.size ? delta : undefined,
++    };
++  }
++  return null;
++}
++
++export async function checkPortableUpdate(from: string, previews: boolean, proxyUrl?: string) {
++  const response = await tauriFetch(
++    previews ? `${releaseApi}?per_page=30` : `${releaseApi}/latest`,
++    {
++      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'MAautodori' },
++      signal: AbortSignal.timeout(15000),
++      proxy: proxyUrl ? { all: proxyUrl } : undefined,
++    },
++  );
++  if (!response.ok) throw new Error(`GitHub HTTP ${response.status}`);
++  const data = await response.json();
++  return selectPortableUpdate(Array.isArray(data) ? data : [data], from, previews);
++}

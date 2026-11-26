@@ -12,6 +12,12 @@ MAautodori 是一个面向《BanG Dream! 少女乐团派对！》简中服的 Mu
 
 使用 Windows x64。将便携 ZIP 完整解压到一个目录，双击 `mxu.exe`。便携包内含 Python、Agent 依赖、OCR 和触控组件。MuMu 和游戏需自行安装，并先在游戏中完成登录。打歌时可自动从 Bestdori 获取原始谱面并在本地解析。
 
+### 从 GitHub 更新
+
+从 v1.5.0 系列起，在客户端「设置 → 更新」选择正式版或公测版，再点「检查更新」。下载并安装时优先使用匹配当前版本的增量包，必要时会自动使用完整包。请在任务完成后安装，安装完成后点「立即重启」。任务配置、手动谱面和打歌记录保存在 `config/`、`charts/` 和 `data/`。
+
+旧版用户首次升级仍需下载完整 ZIP。关闭 MXU 后，将新包内的程序文件放到原目录，保留上述三个用户目录。
+
 如果系统缺少运行库，请分别安装 [Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/#download-section) 和 [Visual C++ x64 运行库](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)。
 
 ## 从 MuMu 启动到单人演出准备
@@ -77,6 +83,8 @@ python -m venv install/.venv
 ```
 
 GitHub Actions 会构建并验证包含 Python 的 Windows x64 便携包。可在 Actions 的 `portable-win-x64` 产物中下载测试包；用于开发的 `MAautodori-win-x86_64` 产物需要在包根目录创建 `.venv` 并安装 `requirements.txt`。[打包工作流](.github/workflows/install.yml)
+
+发布版使用带 GitHub 更新功能的 MXU 2.11.2。构建使用固定的 MXU 源码提交和本仓库补丁，MXU 仍附带自己的许可证。[MXU 源码](https://github.com/MaaXYZ/MXU/tree/2f309effe43bbf151ef71e10895d461eaaad9201) · [更新补丁](tools/mxu-github-update.patch)
 
 发布时，按改动幅度选择 `v主版本.次版本.修订号`，更新 `assets/interface.json` 的 `version`。确认 Actions 检查和打包通过后，推送与该版本一致的 Git 标签。Actions 会检查版本一致性并自动发布便携 ZIP。窗口标题显示项目名称和版本号。
 

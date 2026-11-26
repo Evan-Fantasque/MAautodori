@@ -4,6 +4,7 @@ env:
   # MaaFramework 的版本须与 requirements.txt 中的 MaaFw 一致。
   MAAFW_VERSION: "v6.0.0-beta.3"
   MXU_VERSION: "v2.11.2"
+  MXU_REF: "2f309effe43bbf151ef71e10895d461eaaad9201"
 
 permissions:
   contents: read
@@ -19,6 +20,7 @@ on:
       - "assets/**"
       - "requirements.txt"
       - "tools/requirements.txt"
+      - "tools/mxu-github-update.patch"
       - "**.py"
   pull_request:
     branches:
@@ -28,6 +30,7 @@ on:
       - "assets/**"
       - "requirements.txt"
       - "tools/requirements.txt"
+      - "tools/mxu-github-update.patch"
       - "**.py"
   workflow_dispatch:
 
@@ -68,8 +71,51 @@ jobs:
       is_release: ${{ steps.set_tag.outputs.is_release }}
       is_prerelease: ${{ steps.set_tag.outputs.is_prerelease }}
 
+  mxu:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: MaaXYZ/MXU
+          ref: ${{ env.MXU_REF }}
+          path: build/mxu
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: build/mxu/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: build/mxu/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: build/mxu/src-tauri -> target
+          shared-key: maautodori-mxu-win-x64
+      - name: Build MXU with GitHub updates
+        shell: bash
+        working-directory: build/mxu
+        env:
+          HUSKY: "0"
+        run: |
+          git apply --check ../../tools/mxu-github-update.patch
+          git apply ../../tools/mxu-github-update.patch
+          pnpm install --frozen-lockfile
+          pnpm tauri build --no-bundle --target x86_64-pc-windows-msvc --config "{\"version\":\"${MXU_VERSION#v}\"}"
+          mkdir -p dist-mxu
+          cp src-tauri/target/x86_64-pc-windows-msvc/release/mxu.exe LICENSE dist-mxu/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mxu-win-x86_64
+          path: build/mxu/dist-mxu
+          if-no-files-found: error
+
   install:
-    needs: meta
+    needs: [meta, mxu]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -91,14 +137,11 @@ jobs:
           out-file-path: "deps"
           extract: true
 
-      - name: Download MXU
-        uses: robinraju/release-downloader@v1
+      - name: Download patched MXU
+        uses: actions/download-artifact@v4
         with:
-          repository: MaaXYZ/MXU
-          fileName: "MXU-${{ matrix.os }}-${{ matrix.arch }}-${{ env.MXU_VERSION }}.zip"
-          tag: ${{ env.MXU_VERSION }}
-          out-file-path: "deps/mxu"
-          extract: true
+          name: mxu-win-x86_64
+          path: deps/mxu
 
       - name: Check out EvATive7 Minitouch with the contact fix
         uses: actions/checkout@v4
@@ -151,10 +194,17 @@ jobs:
           path: install
       - name: Build and verify portable ZIP
         run: python tools/package_portable.py
+      - name: Create release update archives
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.meta.outputs.tag }}
+        run: |
+          python tools/package_update.py --repo $env:GITHUB_REPOSITORY --target "build/portable/MAautodori-win-x64-$env:VERSION.zip" --output build/portable
       - uses: actions/upload-artifact@v4
         with:
           name: portable-win-x64
-          path: build/portable/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+          path: build/portable/MAautodori-win-x64-*.zip
           if-no-files-found: error
           compression-level: 0
 
@@ -200,7 +250,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: MAautodori ${{ needs.meta.outputs.tag }}
-          files: assets/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+          files: assets/MAautodori-win-x64-*.zip
           fail_on_unmatched_files: true
           tag_name: ${{ needs.meta.outputs.tag }}
           body: |
