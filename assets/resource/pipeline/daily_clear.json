@@ -126,10 +126,13 @@
     "DailyLiveRankUp": {
         "recognition": "And", "all_of": [
             {"recognition": "OCR", "roi": [114, 94, 177, 44], "expected": "^等级\\s*EXP$"},
-            {"recognition": "OCR", "roi": [483, 291, 320, 43], "expected": "^LIVE\\s*BOOST\\s*[恢回]复了\\s*\\d+[！!]?$"},
+            {"recognition": "Or", "any_of": [
+                {"recognition": "OCR", "roi": [483, 291, 320, 43], "expected": "^LIVE\\s*BOOST\\s*[恢回]复了\\s*\\d+[！!]?$"},
+                {"recognition": "OCR", "roi": [435, 373, 147, 45], "expected": "^角色评级$"}
+            ]},
             {"recognition": "OCR", "roi": [531, 503, 218, 50], "expected": "^确定$"}
         ],
-        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 2
+        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 8
     },
     "DailyLivePointsOK": {
         "recognition": "And", "all_of": [
@@ -147,7 +150,7 @@
     },
     "DailyLiveRewardOK": {
         "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [363, 129, 310, 47], "expected": "^(每日演出报酬完成[！!]?|获得报酬|达成报酬)$"},
+            {"recognition": "OCR", "roi": [363, 129, 310, 47], "expected": "^(每日演出报酬完成[！!]?|累计演出报酬达成[！!]?|获得报酬|达成报酬)$"},
             {"recognition": "OCR", "roi": [522, 510, 232, 66], "expected": "^确定$"}
         ],
         "box_index": 1, "action": "Click", "post_delay": 600, "max_hit": 8
