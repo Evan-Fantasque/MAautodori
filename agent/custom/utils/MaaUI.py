@@ -1,3 +1,9 @@
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+
 def capture(context):
     if context.tasker.stopping:
         raise RuntimeError("任务已停止")
@@ -25,4 +31,22 @@ def reached(context, entry, final, override=None, *, reset_hits=()):
     for node in reset_hits:
         context.clear_hit_count(node)
     result = context.run_task(entry, override)
-    return bool(result and result.nodes and result.nodes[-1].name == final and result.nodes[-1].completed)
+    targets = (final,) if isinstance(final, str) else final
+    return bool(result and result.nodes and result.nodes[-1].name in targets and result.nodes[-1].completed)
+
+
+def navigate(context, entry, final, override=None, *, reset_hits=()):
+    # Only use this for routes that can restart from home before a request is submitted.
+    image = capture(context)
+    if not recognize(context, "GameErrorDialog", image):
+        if reached(context, entry, final, override, reset_hits=reset_hits):
+            return True
+        image = capture(context)
+    if not recognize(context, "GameRecoverableError", image):
+        return False
+    logger.info("导航遇到已识别的游戏错误，尝试返回主页并重走一次：%s", entry)
+    if not reached(context, "start_app", "StartupHomeReady", reset_hits=(
+        "StartupDownloadFailed", "StartupDismissInterrupted", "GameRetryConnection", "StartupTapTitle",
+    )):
+        return False
+    return reached(context, entry, final, override, reset_hits=reset_hits)

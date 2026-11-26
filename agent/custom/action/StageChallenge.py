@@ -2,7 +2,7 @@ import logging
 
 from maa.custom_action import CustomAction
 
-from ..utils.MaaUI import capture, reached, recognize
+from ..utils.MaaUI import capture, navigate, reached, recognize
 from ..utils.SongSelection import exact_title_pattern
 
 
@@ -13,21 +13,22 @@ def enter_stage(context, special):
     image = capture(context)
     if not any(recognize(context, node, image) for node in (
         "StartupHomeReady", "SoloModeMenu", "SoloStageCatalog", "SoloConfirmStage",
-        "SoloStageReady", "StageAreaItemsPrompt", "StageRosterMismatch", "StageRecommendationDone",
+        "SoloStageReady", "StageAreaItemsPrompt", "StageRosterMismatch", "StageRecommendationDone", "GameErrorDialog",
     )) and not reached(context, "start_app", "StartupHomeReady"):
         raise RuntimeError("未进入舞台挑战或游戏主菜单")
 
     catalog = "SoloSpecialStageCatalog" if special else "SoloMainStageCatalog"
     switch = "SoloSwitchSpecialStage" if special else "SoloSwitchMainStage"
     choice = [catalog, f"[JumpBack]{switch}"]
-    if not reached(context, "StageChallengeSelect", "SoloStageReady", {
+    if not navigate(context, "StageChallengeSelect", "SoloStageReady", {
         "StageChallengeSelect": {"next": [
-            "StageCancelAreaItems", "StageCloseRosterMismatch", "StageRecommendationDone", "SoloStageReady", "SoloConfirmStage",
+            "GameErrorDialog", "StageCancelAreaItems", "StageCloseRosterMismatch", "StageRecommendationDone",
+            "SoloStageReady", "SoloConfirmStage",
             *choice, "SoloEnterStage", "SoloModeMenu", "SoloOpenLive",
         ]},
-        "SoloModeMenu": {"next": ["SoloEnterStage"]},
-        "SoloEnterStage": {"next": choice},
-        "SoloConfirmStage": {"next": ["SoloStageReady", "[JumpBack]StageRetryLevelConfirm"]},
+        "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterStage"]},
+        "SoloEnterStage": {"next": ["GameErrorDialog", *choice]},
+        "SoloConfirmStage": {"next": ["GameErrorDialog", "SoloStageReady", "[JumpBack]StageRetryLevelConfirm"]},
     }, reset_hits=(switch, "StageRetryLevelConfirm")):
         raise RuntimeError("未进入舞台挑战编队页，请确认舞台已解锁")
 

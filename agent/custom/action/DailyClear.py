@@ -4,7 +4,7 @@ import logging
 from maa.custom_action import CustomAction
 
 from .DailyRecruit import finish_pull, recruit
-from ..utils.MaaUI import capture, click, reached, recognize
+from ..utils.MaaUI import capture, click, navigate, reached, recognize
 from ..utils.SongSelection import DIFFICULTIES, exact_title_pattern, select_song, verify_band
 
 
@@ -19,9 +19,9 @@ def choose_boost(balance, regular, max_available):
 
 
 def _select_page(context):
-    return reached(context, "DailyEnterSelection", "FreeSongList", {
-        "SoloModeMenu": {"next": ["SoloEnterFree"]},
-        "SoloEnterFree": {"next": ["FreeSongList"]},
+    return navigate(context, "DailyEnterSelection", "FreeSongList", {
+        "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterFree"]},
+        "SoloEnterFree": {"next": ["GameErrorDialog", "FreeSongList"]},
     })
 
 
@@ -38,7 +38,9 @@ def _balance(context):
 
 def _band(context, title, difficulty):
     image = capture(context)
-    if recognize(context, "SoloFreeReady", image) and verify_band(context, image, title, difficulty):
+    if (not recognize(context, "GameErrorDialog", image)
+            and recognize(context, "SoloFreeReady", image)
+            and verify_band(context, image, title, difficulty)):
         return
     if not _select_page(context):
         raise RuntimeError("未能进入普通自由演出的选曲页")
@@ -135,7 +137,7 @@ def _return_after_live(context):
     if not reached(context, "DailySettleBack", "DailyLobby", reset_hits=(
         *LIVE_REWARD_NODES, "DailyLiveRewardList", "DailyLiveRankUp",
         "DailyLiveStatsNext", "DailyLiveExpNext", "DailyLivePointsOK",
-        "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip", "DailyLiveHome",
+        "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip", "DailyLiveHome", "GameRetryConnection",
     )):
         raise RuntimeError("已结算，但未能返回自由演出入口")
 
@@ -148,7 +150,7 @@ def _back_to_home(context):
 
 def _ready(context, *, keep_recruit=False):
     image = capture(context)
-    if recognize(context, "DailyLobby", image):
+    if not recognize(context, "GameErrorDialog", image) and recognize(context, "DailyLobby", image):
         return
     if recognize(context, "DailyResumeSettlement", image):
         _return_after_live(context)

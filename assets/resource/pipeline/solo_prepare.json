@@ -1,9 +1,12 @@
 {
     "SoloPrepare": {
+        "action": "Custom",
+        "custom_action": "PrepareSolo",
+        "focus": {"Node.Action.Failed": "未能完成单人演出准备，请检查游戏画面。"}
+    },
+    "SoloPrepareRoute": {
         "timeout": 15000,
-        "next": [
-            "SoloOpenLive"
-        ]
+        "next": ["GameErrorDialog", "SoloModeMenu", "SoloOpenLive"]
     },
     "SoloOpenLive": {
         "recognition": "And",
@@ -14,7 +17,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloModeMenu"
+            "GameErrorDialog", "SoloModeMenu"
         ],
         "target": [
             1120,
@@ -34,7 +37,7 @@
         "expected": "^选择演出$",
         "timeout": 15000,
         "next": [
-            "SoloEnterFree"
+            "GameErrorDialog", "SoloEnterFree"
         ]
     },
     "SoloEnterFree": {
@@ -50,7 +53,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloConfirmFreeSong"
+            "GameErrorDialog", "SoloConfirmFreeSong"
         ]
     },
     "SoloConfirmFreeSong": {
@@ -91,7 +94,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloFreeReady"
+            "GameErrorDialog", "SoloFreeReady"
         ],
         "box_index": 2
     },
@@ -143,7 +146,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloConfirmChallengeSong"
+            "GameErrorDialog", "SoloConfirmChallengeSong"
         ]
     },
     "SoloConfirmChallengeSong": {
@@ -184,7 +187,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloChallengeReady"
+            "GameErrorDialog", "SoloChallengeReady"
         ],
         "box_index": 2
     },
@@ -229,7 +232,7 @@
         "post_delay": 700,
         "timeout": 90000,
         "next": [
-            "SoloMainStageCatalog",
+            "GameErrorDialog", "SoloMainStageCatalog",
             "[JumpBack]SoloSwitchMainStage"
         ],
         "target": [
@@ -289,7 +292,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloConfirmStage"
+            "GameErrorDialog", "SoloConfirmStage"
         ],
         "box_index": 2
     },
@@ -313,7 +316,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloConfirmStage"
+            "GameErrorDialog", "SoloConfirmStage"
         ],
         "box_index": 2
     },
@@ -391,7 +394,7 @@
         "post_delay": 700,
         "timeout": 30000,
         "next": [
-            "SoloStageReady"
+            "GameErrorDialog", "SoloStageReady"
         ],
         "box_index": 2
     },

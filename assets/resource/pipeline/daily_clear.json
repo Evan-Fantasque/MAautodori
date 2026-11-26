@@ -19,12 +19,12 @@
         "recognition": "Or", "any_of": ["StartupHomeReady", "SoloModeMenu", "FreeSongList", "SoloFreeReady"]
     },
     "DailyEnterSelection": {
-        "next": ["FreeSongList", "DailyBandBack", "SoloModeMenu", "SoloOpenLive"],
+        "next": ["GameErrorDialog", "FreeSongList", "DailyBandBack", "SoloModeMenu", "SoloOpenLive"],
         "timeout": 12000
     },
     "DailyBandBack": {
         "recognition": "And", "all_of": ["SoloFreeReady"],
-        "action": "Click", "target": [32, 32, 42, 40], "next": ["FreeSongList"], "timeout": 10000
+        "action": "Click", "target": [32, 32, 42, 40], "next": ["GameErrorDialog", "FreeSongList"], "timeout": 10000
     },
     "DailyConfirmSong": {"next": ["SoloConfirmFreeSong"], "timeout": 8000},
     "DailyBackToHome": {
@@ -78,7 +78,7 @@
     "DailyBoostBefore": {"recognition": "OCR", "roi": [1046, 542, 35, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
     "DailyBoostAfter": {"recognition": "OCR", "roi": [1099, 542, 51, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
     "DailySettle": {
-        "next": ["DailyLiveStats", "PlayFailureVisible", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"],
+        "next": ["GameErrorDialog", "DailyLiveStats", "PlayFailureVisible", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"],
         "timeout": 45000
     },
     "DailyResumeSettlement": {
@@ -89,7 +89,7 @@
     },
     "DailySettleBack": {
         "next": [
-            "DailyLobby", "[JumpBack]DailyLiveStoryUnlockOK", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
+            "[JumpBack]GameRetryConnection", "GameErrorDialog", "DailyLobby", "[JumpBack]DailyLiveStoryUnlockOK", "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK",
             "[JumpBack]DailyLiveRewardList", "[JumpBack]DailyLiveRewardNext",
             "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",

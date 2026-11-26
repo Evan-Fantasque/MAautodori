@@ -11,7 +11,7 @@
     "welcome": "首次使用！欢迎使用 MAautodori!",
     // 填写项目地址和版本号可实现自动更新功能
     "github": "https://github.com/Evan-Fantasque/MAautodori",
-    "version": "v1.4.0",
+    "version": "v1.4.1",
     // Mirror酱为第三方分发服务，新项目默认关闭
     // 若有需要请联系 Mirror酱 开通，直接自行开启是无法使用的
     // "mirrorchyan_rid": "MaaXXX",
@@ -63,11 +63,7 @@
         {
             "name": "单人演出准备（停在开打前）",
             "entry": "SoloPrepare",
-            "option": ["单人模式"],
-            "pipeline_override": {
-                "SoloFreeReady": {"next": ["PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"], "timeout": 5500},
-                "SoloStageReady": {"next": ["PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"], "timeout": 5500}
-            }
+            "option": ["单人模式"]
         },
         {
             "name": "自由演出（单曲）",
@@ -317,21 +313,21 @@
             "cases": [
                 {
                     "name": "自由演出",
-                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterFree"]}}
+                    "pipeline_override": {"SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterFree"]}}
                 },
                 {
                     "name": "挑战演出",
-                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterChallenge"]}}
+                    "pipeline_override": {"SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterChallenge"]}}
                 },
                 {
                     "name": "舞台挑战（主舞台）",
-                    "pipeline_override": {"SoloModeMenu": {"next": ["SoloEnterStage"]}}
+                    "pipeline_override": {"SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterStage"]}}
                 },
                 {
                     "name": "舞台挑战（特别舞台）",
                     "pipeline_override": {
-                        "SoloModeMenu": {"next": ["SoloEnterStage"]},
-                        "SoloEnterStage": {"next": ["SoloSpecialStageCatalog", "[JumpBack]SoloSwitchSpecialStage"]}
+                        "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterStage"]},
+                        "SoloEnterStage": {"next": ["GameErrorDialog", "SoloSpecialStageCatalog", "[JumpBack]SoloSwitchSpecialStage"]}
                     }
                 }
             ]

@@ -3,7 +3,7 @@ import logging
 
 from maa.custom_action import CustomAction
 
-from ..utils.MaaUI import capture, click, reached, recognize
+from ..utils.MaaUI import capture, click, navigate, reached, recognize
 from ..utils.SongSelection import DIFFICULTIES, exact_title_pattern, select_song, verify_band
 
 
@@ -13,8 +13,8 @@ SONG_LIST = "ChallengeSongList"
 ACHIEVEMENT_NODES = ("ChallengeRewardOK", "ChallengeRewardListClose")
 REWARD_NODES = (*ACHIEVEMENT_NODES, "DailyLiveLargeRewardOK", "DailyLiveRewardOK", "DailyLiveRewardNext")
 ENTER_CHALLENGE = {
-    "SoloModeMenu": {"next": ["SoloEnterChallenge"]},
-    "SoloEnterChallenge": {"next": [SONG_LIST]},
+    "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterChallenge"]},
+    "SoloEnterChallenge": {"next": ["GameErrorDialog", SONG_LIST]},
 }
 
 
@@ -29,10 +29,11 @@ def choose_tier(balance, preferred, floor):
 def _enter_selection(context):
     image = capture(context)
     if not any(recognize(context, node, image) for node in (
-        "ChallengeCPDialog", "ChallengeBandReady", SONG_LIST, "SoloModeMenu", "StartupHomeReady",
+        "ChallengeCPDialog", "ChallengeBandReady", SONG_LIST, "SoloModeMenu", "StartupHomeReady", "GameErrorDialog",
     )) and not reached(context, "start_app", "StartupHomeReady"):
         raise RuntimeError("未进入主菜单，请检查游戏是否需要登录")
-    if not reached(context, "ChallengeEnterSelection", SONG_LIST, ENTER_CHALLENGE):
+    if not navigate(context, "ChallengeEnterSelection", SONG_LIST, ENTER_CHALLENGE,
+                    reset_hits=("ChallengeCPCancel", "ChallengeBandBack")):
         raise RuntimeError("未找到挑战演出选曲页，请确认当前活动开放挑战演出")
 
 
@@ -83,7 +84,7 @@ def _play(context, title, difficulty, tier):
         raise RuntimeError("未确认挑战演出正常结算，已停止")
     if not reached(context, "ChallengeReturn", SONG_LIST, ENTER_CHALLENGE, reset_hits=(
         *REWARD_NODES, "DailyLiveStatsNext", "DailyLiveExpNext", "DailyLiveRankUp", "DailyLivePointsOK",
-        "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip",
+        "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip", "GameRetryConnection",
     )):
         raise RuntimeError("已结算，但未能返回挑战演出选曲页")
 

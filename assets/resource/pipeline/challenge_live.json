@@ -4,7 +4,7 @@
         "focus": {"Node.Action.Failed": "挑战演出停止，请检查当前画面和日志。"}
     },
     "ChallengeEnterSelection": {
-        "next": ["[JumpBack]ChallengeCPCancel", "ChallengeSongList", "[JumpBack]ChallengeBandBack", "SoloModeMenu", "SoloOpenLive"],
+        "next": ["GameErrorDialog", "[JumpBack]ChallengeCPCancel", "ChallengeSongList", "[JumpBack]ChallengeBandBack", "SoloModeMenu", "SoloOpenLive"],
         "timeout": 12000
     },
     "ChallengeModeTitle": {
@@ -75,14 +75,14 @@
     },
     "ChallengeSettle": {
         "next": [
-            "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose", "DailyLiveStats", "PlayFailureVisible",
+            "GameErrorDialog", "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose", "DailyLiveStats", "PlayFailureVisible",
             "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"
         ],
         "timeout": 45000
     },
     "ChallengeReturn": {
         "next": [
-            "ChallengeSongList", "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose",
+            "[JumpBack]GameRetryConnection", "GameErrorDialog", "ChallengeSongList", "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose",
             "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext",
             "[JumpBack]DailyLiveRankUp", "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext",
             "[JumpBack]DailyLivePointsOK", "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip",

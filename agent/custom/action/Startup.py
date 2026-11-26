@@ -3,6 +3,8 @@ import re
 
 from maa.custom_action import CustomAction
 
+from ..utils.MaaUI import navigate
+
 
 logger = logging.getLogger(__name__)
 GAME_PACKAGE = "com.bilibili.star.bili"
@@ -40,3 +42,20 @@ class EnsureGameForeground(CustomAction):
         logger.info("游戏不在前台，启动简中服。")
         result = context.run_action("StartupLaunch")
         return self.RunResult(success=bool(result and result.success))
+
+
+class PrepareSolo(CustomAction):
+    def run(self, context, argv):
+        try:
+            check_presentation = {
+                "next": ["GameErrorDialog", "PlayPresentationOff", "[JumpBack]PlayPresentationEnabled"],
+                "timeout": 5500,
+            }
+            success = navigate(context, "SoloPrepareRoute", ("SoloChallengeReady", "PlayPresentationOff"), {
+                "SoloFreeReady": check_presentation,
+                "SoloStageReady": check_presentation,
+            }, reset_hits=("SoloSwitchMainStage", "SoloSwitchSpecialStage", "PlayPresentationEnabled"))
+            return self.RunResult(success=success)
+        except (RuntimeError, OSError):
+            logger.exception("未能完成单人演出准备")
+            return self.RunResult(success=False)

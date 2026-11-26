@@ -72,7 +72,7 @@
     },
     "StageSettle": {
         "next": [
-            "DailyLiveStats", "PlayFailureVisible", "[JumpBack]StageRewardOK",
+            "GameErrorDialog", "DailyLiveStats", "PlayFailureVisible", "[JumpBack]StageRewardOK",
             "[JumpBack]DailyLiveStoryUnlockOK", "[JumpBack]DailyLiveLargeRewardOK",
             "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext"
         ],
@@ -80,21 +80,13 @@
     },
     "StageReturn": {
         "next": [
-            "StageSettlementDone", "[JumpBack]StageRewardOK", "[JumpBack]DailyLiveStoryUnlockOK",
+            "[JumpBack]GameRetryConnection", "GameErrorDialog", "StageSettlementDone", "[JumpBack]StageRewardOK", "[JumpBack]DailyLiveStoryUnlockOK",
             "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardList",
             "[JumpBack]DailyLiveRewardNext", "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
-            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip",
-            "[JumpBack]StageRetryConnection"
+            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip"
         ],
         "timeout": 60000
-    },
-    "StageRetryConnection": {
-        "recognition": "And", "all_of": [
-            {"recognition": "OCR", "roi": [531, 321, 222, 37], "expected": "^连接中断[。.]?$"},
-            {"recognition": "OCR", "roi": [652, 552, 236, 65], "expected": "^重试$"}
-        ],
-        "box_index": 1, "action": "Click", "post_delay": 850, "max_hit": 1
     },
     "StageSettlementDone": {
         "recognition": "Or", "any_of": ["SoloConfirmStage", "SoloStageCatalog", "StartupHomeReady"]
