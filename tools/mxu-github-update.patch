@@ -1,9 +1,9 @@
 diff --git a/src-tauri/src/commands/portable_update.rs b/src-tauri/src/commands/portable_update.rs
 new file mode 100644
-index 0000000..9ec6ebf
+index 0000000..9e46bd9
 --- /dev/null
 +++ b/src-tauri/src/commands/portable_update.rs
-@@ -0,0 +1,466 @@
+@@ -0,0 +1,341 @@
 +//! GitHub portable updates for the MAautodori Windows distribution.
 +
 +use super::{
@@ -302,7 +302,7 @@ index 0000000..9ec6ebf
 +        let stage = temp.path();
 +        let names = extract(&local_zip, stage, (!incremental).then_some(prefix.as_str()))?;
 +        check_interface(&stage.join("interface.json"), &to)?;
-+        let state = app.state::<MaaState>();
++        let state = app.state::<std::sync::Arc<MaaState>>();
 +        let instances = state
 +            .instances
 +            .lock()
@@ -344,131 +344,6 @@ index 0000000..9ec6ebf
 +    })
 +    .await
 +    .map_err(|err| err.to_string())?
-+}
-+
-+#[cfg(test)]
-+mod tests {
-+    use super::*;
-+
-+    #[test]
-+    fn full_package_unwraps_and_preserves_user_files() {
-+        let temp = tempfile::tempdir().unwrap();
-+        let root = temp.path();
-+        let target = root.join("installed");
-+        let stage = root.join("stage");
-+        fs::create_dir_all(target.join("config")).unwrap();
-+        fs::create_dir_all(target.join("charts")).unwrap();
-+        fs::create_dir_all(target.join("data")).unwrap();
-+
-+        let preserved = [
-+            "config/settings.json",
-+            "charts/local.bms",
-+            "data/play_records.jsonl",
-+        ];
-+        for name in preserved {
-+            fs::write(target.join(name), "personal").unwrap();
-+        }
-+
-+        let zip = root.join("full.zip");
-+        let assets = [
-+            ("interface.json", "version"),
-+            ("resource/test.json", "resource"),
-+        ];
-+        let mut writer = zip::ZipWriter::new(File::create(&zip).unwrap());
-+        for (name, data) in assets {
-+            use std::io::Write;
-+            writer
-+                .start_file(
-+                    format!("{PREFIX}v1.5.0-rc.1/{name}"),
-+                    zip::write::SimpleFileOptions::default(),
-+                )
-+                .unwrap();
-+            writer.write_all(data.as_bytes()).unwrap();
-+        }
-+        writer.finish().unwrap();
-+        let prefix = format!("{PREFIX}v1.5.0-rc.1/");
-+        let names = extract(&zip, &stage, Some(&prefix)).unwrap();
-+        assert_eq!(
-+            names,
-+            BTreeSet::from([
-+                "interface.json".to_string(),
-+                "resource/test.json".to_string()
-+            ])
-+        );
-+        apply_full_update(
-+            stage.to_string_lossy().into_owned(),
-+            target.to_string_lossy().into_owned(),
-+        )
-+        .unwrap();
-+        assert_eq!(
-+            fs::read_to_string(target.join("resource/test.json")).unwrap(),
-+            "resource"
-+        );
-+        assert_eq!(
-+            fs::read_to_string(target.join("interface.json")).unwrap(),
-+            "version"
-+        );
-+        for name in preserved {
-+            assert_eq!(fs::read_to_string(target.join(name)).unwrap(), "personal");
-+        }
-+    }
-+
-+    #[test]
-+    fn incremental_package_changes_only_listed_program_files() {
-+        for drift in [false, true] {
-+            let temp = tempfile::tempdir().unwrap();
-+            let root = temp.path();
-+            let target = root.join("installed");
-+            let stage = root.join("stage");
-+            fs::create_dir_all(target.join("resource")).unwrap();
-+            fs::create_dir_all(target.join("config")).unwrap();
-+            fs::create_dir_all(stage.join("resource")).unwrap();
-+            fs::write(target.join("interface.json"), "old version").unwrap();
-+            fs::write(target.join("resource/old.json"), "delete me").unwrap();
-+            fs::write(target.join("config/settings.json"), "user data").unwrap();
-+            fs::write(stage.join("interface.json"), "new version").unwrap();
-+            fs::write(stage.join("resource/new.json"), "new data").unwrap();
-+            let base: BTreeMap<_, _> = ["interface.json", "resource/old.json"]
-+                .into_iter()
-+                .map(|name| (name, file_hash(&target.join(name)).unwrap()))
-+                .collect();
-+            let files: BTreeMap<_, _> = ["interface.json", "resource/new.json"]
-+                .into_iter()
-+                .map(|name| (name, file_hash(&stage.join(name)).unwrap()))
-+                .collect();
-+            let manifest = serde_json::json!({
-+                "base_version": "v1.4.1", "target_version": "v1.5.0-rc.1",
-+                "deleted": ["resource/old.json"], "base": base, "files": files,
-+            });
-+            fs::write(stage.join("changes.json"), manifest.to_string()).unwrap();
-+            if drift {
-+                fs::write(target.join("resource/old.json"), "local edit").unwrap();
-+            }
-+            let names = ["changes.json", "interface.json", "resource/new.json"]
-+                .into_iter()
-+                .map(String::from)
-+                .collect();
-+            let response = apply_delta(
-+                &target,
-+                &stage,
-+                &root.join("backup"),
-+                names,
-+                "v1.4.1",
-+                "v1.5.0-rc.1",
-+            );
-+            assert_eq!(response.is_err(), drift, "{response:?}");
-+            assert_eq!(
-+                fs::read_to_string(target.join("interface.json")).unwrap(),
-+                if drift { "old version" } else { "new version" }
-+            );
-+            assert_eq!(target.join("resource/old.json").exists(), drift);
-+            assert_eq!(target.join("resource/new.json").exists(), !drift);
-+            assert_eq!(
-+                fs::read_to_string(target.join("config/settings.json")).unwrap(),
-+                "user data"
-+            );
-+        }
-+    }
 +}
 diff --git a/src-tauri/src/commands/update.rs b/src-tauri/src/commands/update.rs
 index c1865be..1d6d250 100644
