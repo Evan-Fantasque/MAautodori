@@ -20,6 +20,7 @@ on:
       - "maatools.config.mts"
       - "**.py"
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   resource:

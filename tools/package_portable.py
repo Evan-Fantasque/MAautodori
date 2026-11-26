@@ -13,6 +13,8 @@ import subprocess
 import sys
 import sysconfig
 
+from package_update import write_installed_manifest
+
 
 PYTHON_VERSION = "3.14.4"
 PYTHON_ARCHIVE = f"python-{PYTHON_VERSION}-embed-amd64.zip"
@@ -123,6 +125,7 @@ def package_portable(install, output_dir):
             json.dumps(interface, ensure_ascii=False, indent=4) + "\n", encoding="utf-8"
         )
         (stage / "README.md").write_text(README, encoding="utf-8")
+        write_installed_manifest(stage, version)
 
         archive = scratch / f"{name}.zip"
         with ZipFile(archive, "w", ZIP_DEFLATED, compresslevel=4) as bundle:

@@ -1,27 +1,33 @@
-"""Publish file-level updates from the actual Windows portable packages."""
+"""Index the exact bytes of a Windows portable ZIP for HTTP range updates."""
 
 import argparse
+import gzip
 from hashlib import file_digest
 import json
 from pathlib import Path, PurePosixPath
 import re
-import shutil
-import subprocess
-from tempfile import TemporaryDirectory
-from zipfile import ZIP_DEFLATED, ZipFile
+from struct import unpack
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 
 PREFIX = "MAautodori-win-x64-"
 VERSION = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?")
 FILES = {"interface.json", "mxu.exe", "LICENSE", "README.md", "requirements.txt"}
 DIRECTORIES = {"agent", "licenses", "maafw", "python", "resource", "share"}
+INSTALLED_MANIFEST = "share/MAautodori-update-files.json"
 
 
-def package_version(archive):
-    version = archive.stem.removeprefix(PREFIX)
-    if archive.name != f"{PREFIX}{version}.zip" or not VERSION.fullmatch(version):
-        raise ValueError(f"Invalid portable archive name: {archive.name}")
-    return version
+def write_installed_manifest(stage, version):
+    manifest = stage / INSTALLED_MANIFEST
+    if manifest.exists():
+        raise ValueError(f"Reserved package file already exists: {INSTALLED_MANIFEST}")
+    files = {}
+    for path in sorted(stage.rglob("*")):
+        if path.is_file():
+            with path.open("rb") as data:
+                files[path.relative_to(stage).as_posix()] = file_digest(data, "sha256").hexdigest()
+    manifest.parent.mkdir(exist_ok=True)
+    manifest.write_text(json.dumps({"version": version, "files": files}, separators=(",", ":")), encoding="utf-8")
 
 
 def contents(archive, version):
@@ -55,77 +61,47 @@ def hashes(archive, files):
     return result
 
 
-def package_update(base, target, output):
-    old_version, new_version = package_version(base), package_version(target)
-    if old_version == new_version:
-        raise ValueError("An update needs two different versions")
-    with ZipFile(base) as before, ZipFile(target) as after:
-        old_files, new_files = contents(before, old_version), contents(after, new_version)
-        old_hashes, new_hashes = hashes(before, old_files), hashes(after, new_files)
-        added = sorted(new_files.keys() - old_files.keys())
-        deleted = sorted(old_files.keys() - new_files.keys())
-        modified = sorted(name for name in new_files.keys() & old_files.keys() if old_hashes[name] != new_hashes[name])
-        manifest = {
-            "base_version": old_version, "target_version": new_version,
-            "added": added, "deleted": deleted, "modified": modified,
-            "base": old_hashes,
-            "files": {name: new_hashes[name] for name in added + modified},
+def write_update_index(target, output):
+    version = target.stem.removeprefix(PREFIX)
+    if target.name != f"{PREFIX}{version}.zip" or not VERSION.fullmatch(version):
+        raise ValueError(f"Invalid portable archive name: {target.name}")
+    with ZipFile(target) as archive, target.open("rb") as raw:
+        members = contents(archive, version)
+        digests = hashes(archive, members)
+        installed = json.loads(archive.read(members[INSTALLED_MANIFEST]))
+        if installed != {"version": version, "files": {k: v for k, v in digests.items() if k != INSTALLED_MANIFEST}}:
+            raise ValueError("The installed file list does not match the portable ZIP")
+        files = {}
+        for name, member in members.items():
+            raw.seek(member.header_offset)
+            signature, name_length, extra_length = unpack("<4s22xHH", raw.read(30))
+            if (
+                signature != b"PK\x03\x04" or member.flag_bits & 1 or not member.compress_size
+                or member.compress_type not in (ZIP_STORED, ZIP_DEFLATED)
+            ):
+                raise ValueError(f"Unsupported ZIP member: {member.filename}")
+            offset = member.header_offset + 30 + name_length + extra_length
+            if offset + member.compress_size > archive.start_dir:
+                raise ValueError(f"Invalid ZIP data range: {member.filename}")
+            files[name] = {
+                "offset": offset, "packed": member.compress_size, "size": member.file_size,
+                "compression": member.compress_type, "sha256": digests[name],
+            }
+        raw.seek(0)
+        index = {
+            "format": 1, "version": version, "archive_size": target.stat().st_size,
+            "archive_sha256": file_digest(raw, "sha256").hexdigest(), "files": files,
         }
-        filename = f"{PREFIX}{old_version}-to-{new_version}.delta.zip"
-        with TemporaryDirectory(dir=output) as temporary:
-            delta = Path(temporary) / filename
-            with ZipFile(delta, "w", ZIP_DEFLATED, compresslevel=4) as update:
-                update.writestr("changes.json", json.dumps(manifest, sort_keys=True, separators=(",", ":")))
-                for name in added + modified:
-                    with after.open(new_files[name]) as src, update.open(name, "w") as dest:
-                        shutil.copyfileobj(src, dest)
-            with ZipFile(delta) as update:
-                if hashes(update, {name: name for name in manifest["files"]}) != manifest["files"]:
-                    raise ValueError("Incremental archive failed verification")
-            if delta.stat().st_size >= target.stat().st_size:
-                print(f"Skipping {filename} because the full package is smaller")
-                return
-            destination = delta.replace(output / filename)
-            print(f"{destination} ({destination.stat().st_size:,} bytes)")
 
-
-def published_updates(repo, target, output):
-    releases = json.loads(subprocess.check_output(
-        ["gh", "api", f"repos/{repo}/releases?per_page=40"], encoding="utf-8",
-    ))
-    version = package_version(target)
-    channels = set()
-    with TemporaryDirectory() as temporary:
-        for release in releases:
-            tag = release["tag_name"]
-            if release["draft"] or tag == version or not VERSION.fullmatch(tag):
-                continue
-            channel = release["prerelease"]
-            if channel in channels:
-                continue
-            filename = f"{PREFIX}{tag}.zip"
-            if not any(asset["name"] == filename and asset["state"] == "uploaded" for asset in release["assets"]):
-                continue
-            subprocess.run(
-                ["gh", "release", "download", tag, "--repo", repo, "--pattern", filename, "--dir", temporary],
-                check=True,
-            )
-            package_update(Path(temporary) / filename, target, output)
-            channels.add(channel)
-            if len(channels) == 2:
-                break
+    output.mkdir(parents=True, exist_ok=True)
+    destination = output / f"{PREFIX}{version}.update-index.json.gz"
+    destination.write_bytes(gzip.compress(json.dumps(index, separators=(",", ":")).encode(), mtime=0))
+    print(f"{destination} ({len(files):,} files, {destination.stat().st_size:,} bytes)")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--base", type=Path)
-    source.add_argument("--repo")
     parser.add_argument("--target", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
-    if args.base:
-        package_update(args.base, args.target, args.output)
-    else:
-        published_updates(args.repo, args.target, args.output)
+    write_update_index(args.target, args.output)

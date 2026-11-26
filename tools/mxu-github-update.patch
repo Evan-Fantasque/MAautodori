@@ -1,9 +1,376 @@
+diff --git a/src-tauri/src/commands/portable_range.rs b/src-tauri/src/commands/portable_range.rs
+new file mode 100644
+index 0000000..3921db8
+--- /dev/null
++++ b/src-tauri/src/commands/portable_range.rs
+@@ -0,0 +1,361 @@
++//! Update managed files using an authenticated index of the portable ZIP.
++
++use super::{
++    apply_files, check_interface, file_hash, local_path, managed, result, update_target, when_idle,
++    PREFIX, PROJECT, ROOT_FILES,
++};
++use flate2::read::{DeflateDecoder, GzDecoder};
++use reqwest::{blocking::Client, header, redirect, StatusCode};
++use serde::Deserialize;
++use sha2::{Digest, Sha256};
++use std::{
++    collections::{BTreeMap, BTreeSet},
++    fs::{self, File},
++    io::{self, Read},
++    path::Path,
++    time::Duration,
++};
++
++const MANIFEST: &str = "share/MAautodori-update-files.json";
++const MAX_INDEX: u64 = 2 * 1024 * 1024;
++const MAX_JSON: u64 = 16 * 1024 * 1024;
++
++#[derive(Deserialize)]
++struct Entry {
++    offset: u64,
++    packed: u64,
++    size: u64,
++    compression: u16,
++    sha256: String,
++}
++
++#[derive(Deserialize)]
++struct Index {
++    format: u32,
++    version: String,
++    archive_size: u64,
++    archive_sha256: String,
++    files: BTreeMap<String, Entry>,
++}
++
++#[derive(Deserialize)]
++struct Manifest {
++    version: String,
++    files: BTreeMap<String, String>,
++}
++
++#[derive(PartialEq, Eq)]
++struct Plan {
++    replace: BTreeMap<String, String>,
++    remove: Vec<String>,
++}
++
++fn hex_digest(value: &str) -> bool {
++    value.len() == 64
++        && value
++            .bytes()
++            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
++}
++
++fn read_index(
++    bytes: &[u8],
++    index_digest: &str,
++    archive_digest: &str,
++    archive_size: u64,
++    version: &str,
++) -> Result<Index, String> {
++    if bytes.len() as u64 > MAX_INDEX
++        || index_digest.strip_prefix("sha256:")
++            != Some(format!("{:x}", Sha256::digest(bytes)).as_str())
++    {
++        return Err("The update index failed SHA-256 verification".into());
++    }
++    let index: Index = result(serde_json::from_reader(
++        GzDecoder::new(bytes).take(MAX_JSON),
++    ))?;
++    let mut windows_names = BTreeSet::new();
++    if index.format != 1
++        || index.version != version
++        || index.archive_size != archive_size
++        || archive_digest.strip_prefix("sha256:") != Some(index.archive_sha256.as_str())
++        || !hex_digest(&index.archive_sha256)
++        || !ROOT_FILES
++            .iter()
++            .chain(&[
++                MANIFEST,
++                "agent/main.py",
++                "python/python.exe",
++                "maafw/MaaFramework.dll",
++            ])
++            .all(|name| index.files.contains_key(*name))
++        || index.files.iter().any(|(name, entry)| {
++            !managed(name)
++                || !windows_names.insert(name.to_lowercase())
++                || !hex_digest(&entry.sha256)
++                || entry.packed == 0
++                || entry.size > u32::MAX as u64
++                || !(entry.compression == 8
++                    || (entry.compression == 0 && entry.size == entry.packed))
++                || entry
++                    .offset
++                    .checked_add(entry.packed)
++                    .is_none_or(|end| end > archive_size)
++        })
++    {
++        return Err("The update index does not match this portable ZIP".into());
++    }
++    Ok(index)
++}
++
++fn read_manifest(root: &Path, version: &str) -> Result<Manifest, String> {
++    let path = local_path(root, MANIFEST)?;
++    let file = result(File::open(path))?;
++    if result(file.metadata())?.len() > MAX_JSON {
++        return Err("The installed file inventory is too large".into());
++    }
++    let manifest: Manifest = result(serde_json::from_reader(file))?;
++    let mut windows_names = BTreeSet::new();
++    if manifest.version != version
++        || manifest.files.iter().any(|(name, digest)| {
++            name == MANIFEST
++                || !managed(name)
++                || !hex_digest(digest)
++                || !windows_names.insert(name.to_lowercase())
++        })
++    {
++        return Err("The installed file inventory does not match this version".into());
++    }
++    Ok(manifest)
++}
++
++fn plan_update(target: &Path, index: &Index, installed: &Manifest) -> Result<Plan, String> {
++    let mut plan = Plan {
++        replace: BTreeMap::new(),
++        remove: Vec::new(),
++    };
++    for (name, entry) in &index.files {
++        let path = local_path(target, name)?;
++        match fs::metadata(&path) {
++            Ok(metadata) if metadata.is_file() => {
++                if metadata.len() == entry.size && file_hash(&path)? == entry.sha256 {
++                    continue;
++                }
++                if name != MANIFEST && !installed.files.contains_key(name) {
++                    return Err(format!(
++                        "A new program file would replace a local file: {name}"
++                    ));
++                }
++            }
++            Ok(_) => return Err(format!("Expected a program file at {name}")),
++            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
++            Err(err) => return Err(err.to_string()),
++        }
++        plan.replace.insert(name.clone(), entry.sha256.clone());
++    }
++
++    let windows_names: BTreeSet<_> = index.files.keys().map(|name| name.to_lowercase()).collect();
++    for (name, old_hash) in &installed.files {
++        if index.files.contains_key(name) {
++            continue;
++        }
++        if windows_names.contains(&name.to_lowercase()) {
++            return Err(format!("Program filename changed case: {name}"));
++        }
++        let path = local_path(target, name)?;
++        match fs::metadata(&path) {
++            Ok(meta) if meta.is_file() && file_hash(&path)? == *old_hash => {
++                plan.remove.push(name.clone())
++            }
++            Ok(_) => {} // A user-modified file is no longer part of the managed installation.
++            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
++            Err(err) => return Err(err.to_string()),
++        }
++    }
++    Ok(plan)
++}
++
++fn groups<'a>(index: &'a Index, plan: &'a Plan) -> Result<Vec<Vec<(&'a str, &'a Entry)>>, String> {
++    let mut files: Vec<_> = plan
++        .replace
++        .keys()
++        .map(|name| (name.as_str(), &index.files[name]))
++        .collect();
++    files.sort_by_key(|(_, entry)| entry.offset);
++    let mut groups: Vec<Vec<_>> = Vec::new();
++    let mut end = 0;
++    for file in files {
++        if file.1.offset < end {
++            return Err("Overlapping ZIP ranges in the update index".into());
++        }
++        if groups.is_empty() || file.1.offset - end > 4096 {
++            groups.push(Vec::new());
++        }
++        end = file.1.offset + file.1.packed;
++        groups.last_mut().unwrap().push(file);
++    }
++    Ok(groups)
++}
++
++fn download_files(
++    client: &Client,
++    url: &str,
++    index: &Index,
++    plan: &Plan,
++    stage: &Path,
++    index_size: u64,
++) -> Result<(), String> {
++    let groups = groups(index, plan)?;
++    let bounds = |group: &[(&str, &Entry)]| {
++        let first = group[0].1;
++        let last = group.last().unwrap().1;
++        (first.offset, last.offset + last.packed)
++    };
++    let download_bytes: u64 = groups
++        .iter()
++        .map(|group| {
++            let (start, end) = bounds(group);
++            end - start
++        })
++        .sum();
++    if groups.len() > 128 || download_bytes + index_size >= index.archive_size {
++        return Err("Downloading the complete ZIP is more efficient".into());
++    }
++    for group in groups {
++        let (start, end) = bounds(&group);
++        let response = client
++            .get(url)
++            .header(header::RANGE, format!("bytes={start}-{}", end - 1))
++            .header(header::ACCEPT_ENCODING, "identity")
++            .send()
++            .map_err(|err| err.without_url().to_string())?;
++        let expected = format!("bytes {start}-{}/{}", end - 1, index.archive_size);
++        if response.status() != StatusCode::PARTIAL_CONTENT
++            || response
++                .headers()
++                .get(header::CONTENT_RANGE)
++                .and_then(|header| header.to_str().ok())
++                != Some(expected.as_str())
++        {
++            return Err("The ZIP server did not return the requested byte range".into());
++        }
++        let mut source = response.take(end - start);
++        let mut offset = start;
++        for (name, entry) in group {
++            let gap = entry.offset - offset;
++            if result(io::copy(&mut (&mut source).take(gap), &mut io::sink()))? != gap {
++                return Err("The ZIP range ended before the requested file".into());
++            }
++            let destination = stage.join(name);
++            result(fs::create_dir_all(
++                destination.parent().ok_or("Missing staging parent")?,
++            ))?;
++            let mut dest = result(File::create(&destination))?;
++            let mut packed = (&mut source).take(entry.packed);
++            let copied = if entry.compression == 8 {
++                result(io::copy(
++                    &mut DeflateDecoder::new(&mut packed).take(entry.size + 1),
++                    &mut dest,
++                ))?
++            } else {
++                result(io::copy(&mut packed, &mut dest))?
++            };
++            let _ = result(io::copy(&mut packed, &mut io::sink()))?;
++            drop(dest);
++            if packed.limit() != 0
++                || copied != entry.size
++                || file_hash(&destination)? != entry.sha256
++            {
++                return Err(format!("Invalid range download: {name}"));
++            }
++            offset = entry.offset + entry.packed;
++        }
++    }
++    Ok(())
++}
++
++fn github_client(proxy_url: Option<String>) -> Result<Client, String> {
++    let mut builder = Client::builder()
++        .user_agent("MAautodori")
++        .connect_timeout(Duration::from_secs(15))
++        .timeout(Duration::from_secs(120))
++        .redirect(redirect::Policy::custom(|attempt| {
++            if attempt.previous().len() >= 5
++                || attempt.url().scheme() != "https"
++                || !matches!(
++                    attempt.url().host_str(),
++                    Some(
++                        "github.com"
++                            | "release-assets.githubusercontent.com"
++                            | "objects.githubusercontent.com"
++                    )
++                )
++            {
++                attempt.error("Unexpected GitHub download redirect")
++            } else {
++                attempt.follow()
++            }
++        }));
++    if let Some(url) = proxy_url.filter(|value| !value.is_empty()) {
++        builder = builder.proxy(reqwest::Proxy::all(url).map_err(|_| "Invalid update proxy")?);
++    }
++    result(builder.build())
++}
++
++#[tauri::command]
++pub async fn maautodori_apply_index(
++    app: tauri::AppHandle,
++    from: String,
++    to: String,
++    index_digest: String,
++    full_digest: String,
++    full_size: u64,
++    proxy_url: Option<String>,
++) -> Result<(), String> {
++    tauri::async_runtime::spawn_blocking(move || {
++        let target = update_target(&from, &to)?;
++        let current = local_path(&target, "interface.json")?;
++        when_idle(&app, &current, &from, || Ok(()))?;
++        let installed = read_manifest(&target, &from)?;
++        let client = github_client(proxy_url)?;
++        let base = format!("{PROJECT}/releases/download/{to}/{PREFIX}{to}");
++        let mut bytes = Vec::new();
++        let response = client
++            .get(format!("{base}.update-index.json.gz"))
++            .header(header::ACCEPT_ENCODING, "identity")
++            .send()
++            .and_then(reqwest::blocking::Response::error_for_status)
++            .map_err(|err| err.without_url().to_string())?;
++        result(response.take(MAX_INDEX + 1).read_to_end(&mut bytes))?;
++        let index = read_index(&bytes, &index_digest, &full_digest, full_size, &to)?;
++        let plan = plan_update(&target, &index, &installed)?;
++        let cache = local_path(&target, "cache")?;
++        result(fs::create_dir_all(&cache))?;
++        let stage = result(tempfile::tempdir_in(&cache))?;
++        download_files(
++            &client,
++            &format!("{base}.zip"),
++            &index,
++            &plan,
++            stage.path(),
++            bytes.len() as u64,
++        )?;
++        check_interface(&stage.path().join("interface.json"), &to)?;
++        let new_manifest = read_manifest(stage.path(), &to)?;
++        if new_manifest.files.iter().ne(index
++            .files
++            .iter()
++            .filter_map(|(name, entry)| (name != MANIFEST).then_some((name, &entry.sha256))))
++        {
++            return Err("The target file inventory does not match the update index".into());
++        }
++        let backups = local_path(&cache, "old")?;
++        when_idle(&app, &current, &from, || {
++            if plan_update(&target, &index, &read_manifest(&target, &from)?)? != plan {
++                return Err("The installed files changed during download".into());
++            }
++            apply_files(&target, stage.path(), &backups, &plan.replace, &plan.remove)
++        })
++    })
++    .await
++    .map_err(|err| err.to_string())?
++}
 diff --git a/src-tauri/src/commands/portable_update.rs b/src-tauri/src/commands/portable_update.rs
 new file mode 100644
-index 0000000..9e46bd9
+index 0000000..88ded04
 --- /dev/null
 +++ b/src-tauri/src/commands/portable_update.rs
-@@ -0,0 +1,341 @@
+@@ -0,0 +1,286 @@
 +//! GitHub portable updates for the MAautodori Windows distribution.
 +
 +use super::{
@@ -20,6 +387,9 @@ index 0000000..9e46bd9
 +    path::{Path, PathBuf},
 +};
 +use tauri::Manager;
++
++#[path = "portable_range.rs"]
++pub mod range;
 +
 +const PREFIX: &str = "MAautodori-win-x64-";
 +const PROJECT: &str = "https://github.com/Evan-Fantasque/MAautodori";
@@ -38,21 +408,13 @@ index 0000000..9e46bd9
 +    github: String,
 +}
 +
-+#[derive(Deserialize)]
-+struct Changes {
-+    base_version: String,
-+    target_version: String,
-+    deleted: Vec<String>,
-+    base: BTreeMap<String, String>,
-+    files: BTreeMap<String, String>,
-+}
-+
 +fn result<T>(value: Result<T, impl std::fmt::Display>) -> Result<T, String> {
 +    value.map_err(|err| err.to_string())
 +}
 +
 +fn managed(name: &str) -> bool {
-+    if name.contains(['\\', ':', '\0'])
++    if name.contains(['\\', ':', '<', '>', '"', '|', '?', '*'])
++        || name.chars().any(char::is_control)
 +        || name.split('/').any(|part| {
 +            part.is_empty()
 +                || part.ends_with(['.', ' '])
@@ -137,27 +499,20 @@ index 0000000..9e46bd9
 +    Ok(())
 +}
 +
-+fn extract(
-+    zip_file: &Path,
-+    stage: &Path,
-+    full_prefix: Option<&str>,
-+) -> Result<BTreeSet<String>, String> {
++fn extract(zip_file: &Path, stage: &Path, full_prefix: &str) -> Result<BTreeSet<String>, String> {
 +    let mut archive = result(zip::ZipArchive::new(result(File::open(zip_file))?))?;
 +    let mut names = BTreeSet::new();
 +    let mut windows_names = BTreeSet::new();
 +    for index in 0..archive.len() {
 +        let mut member = result(archive.by_index(index))?;
-+        let name = match full_prefix {
-+            Some(prefix) => member
-+                .name()
-+                .strip_prefix(prefix)
-+                .ok_or("Wrong portable archive root")?,
-+            None => member.name(),
-+        };
++        let name = member
++            .name()
++            .strip_prefix(full_prefix)
++            .ok_or("Wrong portable archive root")?;
 +        if member.is_dir() {
 +            continue;
 +        }
-+        if !(managed(name) || (full_prefix.is_none() && name == "changes.json"))
++        if !managed(name)
 +            || !windows_names.insert(name.to_lowercase())
 +            || member
 +                .unix_mode()
@@ -176,61 +531,14 @@ index 0000000..9e46bd9
 +    Ok(names)
 +}
 +
-+fn apply_delta(
++fn apply_files(
 +    target: &Path,
 +    stage: &Path,
 +    backups: &Path,
-+    names: BTreeSet<String>,
-+    from: &str,
-+    to: &str,
++    files: &BTreeMap<String, String>,
++    removed: &[String],
 +) -> Result<(), String> {
-+    let manifest: Changes = result(serde_json::from_reader(result(File::open(
-+        stage.join("changes.json"),
-+    ))?))?;
-+    let deleted: BTreeSet<_> = manifest.deleted.iter().collect();
-+    if manifest.base_version != from
-+        || manifest.target_version != to
-+        || !manifest.files.contains_key("interface.json")
-+        || names
-+            .iter()
-+            .filter(|name| name.as_str() != "changes.json")
-+            .ne(manifest.files.keys())
-+        || deleted.len() != manifest.deleted.len()
-+        || deleted
-+            .iter()
-+            .any(|name| !manifest.base.contains_key(*name) || manifest.files.contains_key(*name))
-+        || manifest
-+            .base
-+            .keys()
-+            .chain(manifest.files.keys())
-+            .any(|name| !managed(name))
-+    {
-+        return Err("The incremental manifest does not match this update".into());
-+    }
-+
-+    for (name, expected) in &manifest.base {
-+        if file_hash(&local_path(target, name)?)? != *expected {
-+            return Err(format!(
-+                "Installed file differs from the incremental base: {name}"
-+            ));
-+        }
-+    }
-+    for (name, expected) in &manifest.files {
-+        if file_hash(&stage.join(name))? != *expected {
-+            return Err(format!("Invalid incremental file hash: {name}"));
-+        }
-+        if !manifest.base.contains_key(name) && local_path(target, name)?.exists() {
-+            return Err(format!(
-+                "A new program file would replace a local file: {name}"
-+            ));
-+        }
-+    }
-+
-+    let mut touched: Vec<_> = manifest
-+        .deleted
-+        .iter()
-+        .chain(manifest.files.keys())
-+        .collect();
++    let mut touched: Vec<_> = removed.iter().chain(files.keys()).collect();
 +    touched.sort_by_key(|name| is_interface_file(std::ffi::OsStr::new(name.as_str())));
 +    let _guard = OLD_DIR_LOCK.lock().unwrap_or_else(|err| err.into_inner());
 +    let mut journal = FullUpdateJournal::default();
@@ -241,7 +549,7 @@ index 0000000..9e46bd9
 +            {
 +                journal.moved.push((dest.clone(), backup));
 +            }
-+            if let Some(expected) = manifest.files.get(name) {
++            if let Some(expected) = files.get(name) {
 +                result(fs::create_dir_all(
 +                    dest.parent().ok_or("Missing destination parent")?,
 +                ))?;
@@ -263,6 +571,37 @@ index 0000000..9e46bd9
 +    Ok(())
 +}
 +
++fn update_target(from: &str, to: &str) -> Result<PathBuf, String> {
++    if !cfg!(target_os = "windows") {
++        return Err("This portable update requires Windows".into());
++    }
++    let parse = |value: &str| semver::Version::parse(value.trim_start_matches('v'));
++    if result(parse(to))? <= result(parse(from))? {
++        return Err("Update target must be newer than the installed version".into());
++    }
++    let target = get_exe_directory()?;
++    check_interface(&local_path(&target, "interface.json")?, from)?;
++    Ok(target)
++}
++
++fn when_idle<T>(
++    app: &tauri::AppHandle,
++    current: &Path,
++    from: &str,
++    install: impl FnOnce() -> Result<T, String>,
++) -> Result<T, String> {
++    let state = app.state::<std::sync::Arc<MaaState>>();
++    let instances = state
++        .instances
++        .lock()
++        .unwrap_or_else(|err| err.into_inner());
++    if instances.values().any(|value| value.is_running()) {
++        return Err("UPDATE_BUSY".into());
++    }
++    check_interface(current, from)?;
++    install()
++}
++
 +#[tauri::command]
 +pub async fn maautodori_apply_update(
 +    app: tauri::AppHandle,
@@ -270,28 +609,13 @@ index 0000000..9e46bd9
 +    digest: String,
 +    from: String,
 +    to: String,
-+    incremental: bool,
 +) -> Result<(), String> {
 +    tauri::async_runtime::spawn_blocking(move || {
-+        if !cfg!(target_os = "windows") {
-+            return Err("This portable update requires Windows".into());
-+        }
-+        let parse = |value: &str| semver::Version::parse(value.trim_start_matches('v'));
-+        if result(parse(&to))? <= result(parse(&from))? {
-+            return Err("Update target must be newer than the installed version".into());
-+        }
-+        let target = get_exe_directory()?;
++        let target = update_target(&from, &to)?;
 +        let current = local_path(&target, "interface.json")?;
-+        check_interface(&current, &from)?;
 +        let cache = local_path(&target, "cache")?;
-+        let backups = local_path(&cache, "old")?;
 +        let zip_path = PathBuf::from(zip_path);
-+        let filename = if incremental {
-+            format!("{PREFIX}{from}-to-{to}.delta.zip")
-+        } else {
-+            format!("{PREFIX}{to}.zip")
-+        };
-+        let local_zip = local_path(&cache, &filename)?;
++        let local_zip = local_path(&cache, &format!("{PREFIX}{to}.zip"))?;
 +        if result(zip_path.canonicalize())? != result(local_zip.canonicalize())?
 +            || digest.strip_prefix("sha256:") != Some(file_hash(&local_zip)?.as_str())
 +        {
@@ -300,20 +624,9 @@ index 0000000..9e46bd9
 +        let temp = result(tempfile::tempdir_in(&cache))?;
 +        let prefix = format!("{PREFIX}{to}/");
 +        let stage = temp.path();
-+        let names = extract(&local_zip, stage, (!incremental).then_some(prefix.as_str()))?;
++        let names = extract(&local_zip, stage, &prefix)?;
 +        check_interface(&stage.join("interface.json"), &to)?;
-+        let state = app.state::<std::sync::Arc<MaaState>>();
-+        let instances = state
-+            .instances
-+            .lock()
-+            .unwrap_or_else(|err| err.into_inner());
-+        if instances.values().any(|value| value.is_running()) {
-+            return Err("UPDATE_BUSY".into());
-+        }
-+        check_interface(&current, &from)?;
-+        if incremental {
-+            apply_delta(&target, stage, &backups, names, &from, &to)?;
-+        } else {
++        when_idle(&app, &current, &from, || {
 +            if !ROOT_FILES.iter().all(|name| names.contains(*name))
 +                || ![
 +                    "agent/main.py",
@@ -335,9 +648,8 @@ index 0000000..9e46bd9
 +                } else {
 +                    format!("ROLLBACK_FAILED: {}", err.message)
 +                }
-+            })?;
-+        }
-+        drop(instances);
++            })
++        })?;
 +        // Installation has already committed. Failure to clean a cached ZIP does not undo it.
 +        let _ = fs::remove_file(local_zip);
 +        Ok(())
@@ -360,14 +672,15 @@ index c1865be..1d6d250 100644
  #[tauri::command]
  pub fn validate_update_target(target_dir: String) -> Result<(), String> {
 diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
-index 25b0e01..f159006 100644
+index 25b0e01..b36ad5e 100644
 --- a/src-tauri/src/lib.rs
 +++ b/src-tauri/src/lib.rs
-@@ -316,6 +316,7 @@ pub fn run() {
+@@ -316,6 +316,8 @@ pub fn run() {
              commands::update::check_changes_json,
              commands::update::apply_incremental_update,
              commands::update::apply_full_update,
 +            commands::update::portable::maautodori_apply_update,
++            commands::update::portable::range::maautodori_apply_index,
              commands::update::cleanup_extract_dir,
              commands::update::fallback_update,
              commands::update::move_file_to_old,
@@ -426,10 +739,10 @@ index 2fe3800..4afb0c7 100644
              <DebugSection />
 diff --git a/src/components/settings/GithubPortableUpdate.tsx b/src/components/settings/GithubPortableUpdate.tsx
 new file mode 100644
-index 0000000..76ae818
+index 0000000..e59a7bc
 --- /dev/null
 +++ b/src/components/settings/GithubPortableUpdate.tsx
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,195 @@
 +import { useRef, useState } from 'react';
 +import { useTranslation } from 'react-i18next';
 +import { Download } from 'lucide-react';
@@ -483,39 +796,50 @@ index 0000000..76ae818
 +    active.current = true;
 +    setError(undefined);
 +    try {
-+      for (const asset of update.delta ? [update.delta, update.full] : [update.full]) {
-+        const incremental = asset === update.delta;
-+        setDetail(incremental ? 'incremental' : 'full');
++      if (update.index) {
++        setDetail('range');
 +        setProgress(null);
-+        setPhase('downloading');
++        setPhase('installing');
 +        try {
-+          const downloaded = await downloadUpdate({
-+            url: asset.browser_download_url,
-+            savePath: await getUpdateSavePath(asset.name),
-+            totalSize: asset.size,
-+            proxySettings: proxy,
-+            onProgress: setProgress,
-+          });
-+          if (!downloaded.success || !downloaded.actualSavePath) {
-+            throw new Error(t('mirrorChyan.downloadFailed'));
-+          }
-+          setPhase('installing');
-+          await invoke('maautodori_apply_update', {
-+            zipPath: downloaded.actualSavePath,
-+            digest: asset.digest,
++          await invoke('maautodori_apply_index', {
++            indexDigest: update.index.digest,
++            fullDigest: update.full.digest,
++            fullSize: update.full.size,
 +            from: version,
 +            to: update.version,
-+            incremental,
++            proxyUrl: proxy?.url,
 +          });
 +          setPhase('done');
 +          return;
 +        } catch (err) {
 +          const reason = String(err);
-+          if (!incremental || reason.includes('UPDATE_BUSY') || reason.includes('ROLLBACK_FAILED'))
++          if (reason.includes('UPDATE_BUSY') || reason.includes('ROLLBACK_FAILED'))
 +            throw err;
-+          loggers.ui.warn('Incremental update failed; downloading the full package', err);
++          loggers.ui.warn('Range update unavailable; downloading the full package', err);
 +        }
 +      }
++      const asset = update.full;
++      setDetail('full');
++      setProgress(null);
++      setPhase('downloading');
++      const downloaded = await downloadUpdate({
++        url: asset.browser_download_url,
++        savePath: await getUpdateSavePath(asset.name),
++        totalSize: asset.size,
++        proxySettings: proxy,
++        onProgress: setProgress,
++      });
++      if (!downloaded.success || !downloaded.actualSavePath) {
++        throw new Error(t('mirrorChyan.downloadFailed'));
++      }
++      setPhase('installing');
++      await invoke('maautodori_apply_update', {
++        zipPath: downloaded.actualSavePath,
++        digest: asset.digest,
++        from: version,
++        to: update.version,
++      });
++      setPhase('done');
 +    } catch (err) {
 +      const reason = String(err);
 +      setError(
@@ -574,10 +898,10 @@ index 0000000..76ae818
 +                showActions={false}
 +              />
 +            )}
-+            {detail && (
++            {detail && phase !== 'done' && (
 +              <p role="status">
-+                {t(`mirrorChyan.installStages.${detail}`)}
-+                {phase === 'installing' ? ` · ${t('mirrorChyan.installing')}` : ''}
++                {detail === 'range' ? t('maautodoriUpdate.range') : t('mirrorChyan.installStages.full')}
++                {phase === 'installing' && detail !== 'range' ? ` · ${t('mirrorChyan.installing')}` : ''}
 +              </p>
 +            )}
 +            {phase === 'done' && <p role="status">{t('mirrorChyan.restartRequired')}</p>}
@@ -615,30 +939,32 @@ index 0000000..76ae818
 +  );
 +}
 diff --git a/src/i18n/locales/en-US.ts b/src/i18n/locales/en-US.ts
-index cd2989b..c710c23 100644
+index cd2989b..f29b2a5 100644
 --- a/src/i18n/locales/en-US.ts
 +++ b/src/i18n/locales/en-US.ts
-@@ -763,6 +763,10 @@ export default {
+@@ -763,6 +763,11 @@ export default {
    },
 
    // MirrorChyan Update
 +  maautodoriUpdate: {
 +    downloadInstall: 'Download and install',
++    range: 'Comparing files and downloading changes',
 +    busy: 'Wait for running tasks to finish before installing the update.',
 +  },
    mirrorChyan: {
      title: 'Update',
      debugModeNotice: 'Debug version detected, auto-update is disabled',
 diff --git a/src/i18n/locales/zh-CN.ts b/src/i18n/locales/zh-CN.ts
-index 284fcd3..39ea2db 100644
+index 284fcd3..f7bf036 100644
 --- a/src/i18n/locales/zh-CN.ts
 +++ b/src/i18n/locales/zh-CN.ts
-@@ -721,6 +721,10 @@ export default {
+@@ -721,6 +721,11 @@ export default {
    },
 
    // MirrorChyan 更新
 +  maautodoriUpdate: {
 +    downloadInstall: '下载并安装',
++    range: '正在比较文件并下载变更',
 +    busy: '请等待任务结束后再安装更新。',
 +  },
    mirrorChyan: {
@@ -646,10 +972,10 @@ index 284fcd3..39ea2db 100644
      debugModeNotice: '当前为调试版本，已禁用自动更新功能',
 diff --git a/src/services/githubPortableUpdate.ts b/src/services/githubPortableUpdate.ts
 new file mode 100644
-index 0000000..e2c3e9e
+index 0000000..0d1bec4
 --- /dev/null
 +++ b/src/services/githubPortableUpdate.ts
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,84 @@
 +import * as semver from 'semver';
 +import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 +
@@ -678,7 +1004,7 @@ index 0000000..e2c3e9e
 +  version: string;
 +  notes: string;
 +  full: PortableAsset;
-+  delta?: PortableAsset;
++  index?: PortableAsset;
 +}
 +
 +export function selectPortableUpdate(
@@ -703,18 +1029,19 @@ index 0000000..e2c3e9e
 +        (asset) =>
 +          asset.name === name &&
 +          asset.state === 'uploaded' &&
++          Number.isSafeInteger(asset.size) &&
 +          asset.size > 0 &&
 +          /^sha256:[a-f0-9]{64}$/.test(asset.digest) &&
 +          asset.browser_download_url === `${portableProject}/releases/download/${version}/${name}`,
 +      );
 +    const full = findAsset(`${prefix}${version}.zip`);
 +    if (!full) continue;
-+    const delta = findAsset(`${prefix}${from}-to-${version}.delta.zip`);
++    const index = findAsset(`${prefix}${version}.update-index.json.gz`);
 +    return {
 +      version,
 +      notes: release.body || '',
 +      full,
-+      delta: delta && delta.size < full.size ? delta : undefined,
++      index: index && index.size < full.size ? index : undefined,
 +    };
 +  }
 +  return null;

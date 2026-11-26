@@ -17,6 +17,7 @@ on:
       - "**"
     paths:
       - ".github/workflows/install.yml"
+      - ".github/workflows/check.yml"
       - "assets/**"
       - "requirements.txt"
       - "tools/requirements.txt"
@@ -27,6 +28,7 @@ on:
       - "**"
     paths:
       - ".github/workflows/install.yml"
+      - ".github/workflows/check.yml"
       - "assets/**"
       - "requirements.txt"
       - "tools/requirements.txt"
@@ -165,14 +167,9 @@ jobs:
       - name: Install
         env:
           VERSION: ${{ needs.meta.outputs.tag }}
-          IS_RELEASE: ${{ needs.meta.outputs.is_release }}
         run: |
           python -m pip install -r tools/requirements.txt
-          args=("$VERSION" '${{ matrix.os }}' '${{ matrix.arch }}')
-          if [[ "$IS_RELEASE" == true ]]; then
-            args+=(--release)
-          fi
-          python tools/install.py "${args[@]}"
+          python tools/install.py "$VERSION" '${{ matrix.os }}' '${{ matrix.arch }}'
 
       - uses: actions/upload-artifact@v4
         with:
@@ -194,17 +191,18 @@ jobs:
           path: install
       - name: Build and verify portable ZIP
         run: python tools/package_portable.py
-      - name: Create release update archives
+      - name: Index the portable ZIP for client-side updates
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.meta.outputs.tag }}
         run: |
-          python tools/package_update.py --repo $env:GITHUB_REPOSITORY --target "build/portable/MAautodori-win-x64-$env:VERSION.zip" --output build/portable
+          python tools/package_update.py --target "build/portable/MAautodori-win-x64-$env:VERSION.zip" --output build/portable
       - uses: actions/upload-artifact@v4
         with:
           name: portable-win-x64
-          path: build/portable/MAautodori-win-x64-*.zip
+          path: |
+            build/portable/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+            build/portable/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.update-index.json.gz
           if-no-files-found: error
           compression-level: 0
 
@@ -235,9 +233,14 @@ jobs:
           OUTPUT: CHANGES.md
           GITHUB_REPO: ${{ github.repository }}
 
+  release-check:
+    needs: meta
+    if: ${{ needs.meta.outputs.is_release == 'true' }}
+    uses: ./.github/workflows/check.yml
+
   release:
     if: ${{ needs.meta.outputs.is_release == 'true' }}
-    needs: [meta, portable, changelog]
+    needs: [meta, portable, changelog, release-check]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -250,11 +253,15 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: MAautodori ${{ needs.meta.outputs.tag }}
-          files: assets/MAautodori-win-x64-*.zip
+          files: |
+            assets/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.zip
+            assets/MAautodori-win-x64-${{ needs.meta.outputs.tag }}.update-index.json.gz
           fail_on_unmatched_files: true
           tag_name: ${{ needs.meta.outputs.tag }}
           body: |
             下载 Windows x64 便携 ZIP，完整解压后打开 `mxu.exe`。包内含 Python、Agent 依赖、OCR 和触控组件。MuMu 和游戏请自行安装，并在游戏中完成登录。[配置与使用说明](https://github.com/${{ github.repository }}/blob/${{ needs.meta.outputs.tag }}/README.md)
+
+            更新索引由客户端自动读取。旧版客户端可用完整包完成首次升级。
 
             本项目为第三方工具。使用本工具产生的后果由使用者自行承担。
 
