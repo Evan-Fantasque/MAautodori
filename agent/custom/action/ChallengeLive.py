@@ -14,7 +14,7 @@ ACHIEVEMENT_NODES = ("ChallengeRewardOK", "ChallengeRewardListClose")
 REWARD_NODES = (*ACHIEVEMENT_NODES, "DailyLiveLargeRewardOK", "DailyLiveRewardOK", "DailyLiveRewardNext")
 ENTER_CHALLENGE = {
     "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterChallenge"]},
-    "SoloEnterChallenge": {"next": ["GameErrorDialog", SONG_LIST]},
+    "SoloEnterChallenge": {"next": ["GameErrorDialog", SONG_LIST, "SoloEnterChallenge"]},
 }
 
 
@@ -33,7 +33,7 @@ def _enter_selection(context):
     )) and not reached(context, "start_app", "StartupHomeReady"):
         raise RuntimeError("未进入主菜单，请检查游戏是否需要登录")
     if not navigate(context, "ChallengeEnterSelection", SONG_LIST, ENTER_CHALLENGE,
-                    reset_hits=("ChallengeCPCancel", "ChallengeBandBack")):
+                    reset_hits=("SoloOpenLive", "SoloEnterChallenge", "ChallengeCPCancel", "ChallengeBandBack")):
         raise RuntimeError("未找到挑战演出选曲页，请确认当前活动开放挑战演出")
 
 
@@ -46,8 +46,8 @@ def _balance(context, node, image):
 
 def _select_cost(context, tier, balance):
     if not reached(context, "ChallengeOpenCP", "ChallengeCPDialog", {
-        "SoloConfirmChallengeSong": {"next": ["ChallengeCPDialog"]},
-    }):
+        "SoloConfirmChallengeSong": {"next": ["GameErrorDialog", "ChallengeCPDialog", "SoloConfirmChallengeSong"]},
+    }, reset_hits=("SoloConfirmChallengeSong",)):
         raise RuntimeError("未进入挑战点数选择窗口")
     image = capture(context)
     if _balance(context, "ChallengeDialogBalance", image) != balance:
@@ -85,6 +85,7 @@ def _play(context, title, difficulty, tier):
     if not reached(context, "ChallengeReturn", SONG_LIST, ENTER_CHALLENGE, reset_hits=(
         *REWARD_NODES, "DailyLiveStatsNext", "DailyLiveExpNext", "DailyLiveRankUp", "DailyLivePointsOK",
         "StoryOpenMenu", "StorySelectSkip", "StoryConfirmSkip", "GameRetryConnection",
+        "SoloOpenLive", "SoloEnterChallenge",
     )):
         raise RuntimeError("已结算，但未能返回挑战演出选曲页")
 

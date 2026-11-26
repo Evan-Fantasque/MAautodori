@@ -54,7 +54,12 @@ class PrepareSolo(CustomAction):
             success = navigate(context, "SoloPrepareRoute", ("SoloChallengeReady", "PlayPresentationOff"), {
                 "SoloFreeReady": check_presentation,
                 "SoloStageReady": check_presentation,
-            }, reset_hits=("SoloSwitchMainStage", "SoloSwitchSpecialStage", "PlayPresentationEnabled"))
+            }, reset_hits=(
+                "SoloOpenLive", "SoloEnterFree", "SoloEnterChallenge", "SoloEnterStage",
+                "SoloConfirmFreeSong", "SoloConfirmChallengeSong", "SoloConfirmStage",
+                "SoloMainStageCatalog", "SoloSpecialStageCatalog", "SoloSwitchMainStage", "SoloSwitchSpecialStage",
+                "PlayPresentationEnabled",
+            ))
             return self.RunResult(success=success)
         except (RuntimeError, OSError):
             logger.exception("未能完成单人演出准备")

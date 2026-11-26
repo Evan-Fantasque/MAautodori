@@ -21,8 +21,8 @@ def choose_boost(balance, regular, max_available):
 def _select_page(context):
     return navigate(context, "DailyEnterSelection", "FreeSongList", {
         "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterFree"]},
-        "SoloEnterFree": {"next": ["GameErrorDialog", "FreeSongList"]},
-    })
+        "SoloEnterFree": {"next": ["GameErrorDialog", "FreeSongList", "SoloEnterFree"]},
+    }, reset_hits=("SoloOpenLive", "SoloEnterFree", "DailyBandBack"))
 
 
 def _number(context, name, image, override=None):
@@ -46,7 +46,7 @@ def _band(context, title, difficulty):
         raise RuntimeError("未能进入普通自由演出的选曲页")
     if not select_song(context, title, difficulty):
         raise RuntimeError(f"当前乐曲筛选下找不到或无法选择 {title} {difficulty}")
-    if not reached(context, "DailyConfirmSong", "SoloFreeReady"):
+    if not reached(context, "DailyConfirmSong", "SoloFreeReady", reset_hits=("SoloConfirmFreeSong",)):
         raise RuntimeError("无法进入普通自由演出的编队页")
     if not verify_band(context, capture(context), title, difficulty):
         raise RuntimeError("编队页的曲名或难度与设置不一致")
@@ -72,7 +72,7 @@ def _radio(y):
 
 
 def _set_boost(context, balance, regular, prioritize_max=True):
-    if not reached(context, "DailyBoostOpen", "DailyBoostDialog"):
+    if not reached(context, "DailyBoostOpen", "DailyBoostDialog", reset_hits=("DailyOpenBoost",)):
         raise RuntimeError("未能打开火焰设置")
     image = capture(context)
     max_available = prioritize_max and balance >= 10 and bool(recognize(context, "DailyBoostMax", image))
@@ -93,7 +93,7 @@ def _set_boost(context, balance, regular, prioritize_max=True):
             raise RuntimeError("最大消费档仍处于选中状态")
     if not recognize(context, "DailyBoostSelected", image, _radio(y)) and not click(context, (1002, y)):
         raise RuntimeError(f"无法选择 {tier} 火")
-    if not reached(context, "DailyBoostApply", "SoloFreeReady", _radio(y)):
+    if not reached(context, "DailyBoostApply", "SoloFreeReady", _radio(y), reset_hits=("DailyBoostConfirm",)):
         raise RuntimeError("火焰档位未确认")
     image = capture(context)
     expected = (balance, balance - min(tier, balance))

@@ -4,7 +4,7 @@
         "focus": {"Node.Action.Failed": "挑战演出停止，请检查当前画面和日志。"}
     },
     "ChallengeEnterSelection": {
-        "next": ["GameErrorDialog", "[JumpBack]ChallengeCPCancel", "ChallengeSongList", "[JumpBack]ChallengeBandBack", "SoloModeMenu", "SoloOpenLive"],
+        "next": ["GameErrorDialog", "[JumpBack]ChallengeCPCancel", "ChallengeCPDialog", "ChallengeSongList", "[JumpBack]ChallengeBandBack", "SoloModeMenu", "SoloOpenLive"],
         "timeout": 12000
     },
     "ChallengeModeTitle": {
@@ -26,13 +26,13 @@
     "ChallengeCPDialog": {"recognition": "And", "all_of": ["SoloChallengeReady", "ChallengeModeTitle"]},
     "ChallengeBandBack": {
         "recognition": "And", "all_of": ["ChallengeBandReady"],
-        "action": "Click", "target": [15, 15, 76, 76], "post_delay": 700, "max_hit": 1
+        "action": "Click", "target": [15, 15, 76, 76], "post_delay": 700, "max_hit": 3
     },
     "ChallengeCPCancel": {
         "recognition": "And", "all_of": [
             "ChallengeCPDialog", {"recognition": "OCR", "roi": [394, 584, 225, 67], "expected": "^取消$"}
         ],
-        "box_index": 1, "action": "Click", "post_delay": 650, "max_hit": 1
+        "box_index": 1, "action": "Click", "post_delay": 650, "max_hit": 3
     },
     "ChallengeOpenCP": {"next": ["SoloConfirmChallengeSong"], "timeout": 8000},
     "ChallengeDialogBalance": {
@@ -85,7 +85,7 @@
             "[JumpBack]GameRetryConnection", "GameErrorDialog", "ChallengeSongList", "[JumpBack]ChallengeRewardOK", "[JumpBack]ChallengeRewardListClose",
             "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardNext",
             "[JumpBack]DailyLiveRankUp", "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext",
-            "[JumpBack]DailyLivePointsOK", "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip",
+            "[JumpBack]DailyLivePointsOK", "[JumpBack]StoryConfirmSkip", "[JumpBack]StorySelectSkip", "[JumpBack]StoryOpenMenu",
             "SoloModeMenu", "SoloOpenLive"
         ],
         "timeout": 60000

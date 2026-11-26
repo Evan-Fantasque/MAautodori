@@ -27,23 +27,21 @@ def verify_band(context, image, title, difficulty):
 
 
 def select_difficulty(context, difficulty, *, list_node="FreeSongList"):
-    image = capture(context)
-    if not recognize(context, list_node, image):
-        return False
     x = DIFFICULTIES[difficulty]
-    label = recognize(context, "SongPickerDifficulty", image, {
+    override = {
         "SongPickerDifficulty": {"roi": [x - 55, 558, 110, 30], "expected": f"^{difficulty}$"}
-    })
-    if not label:
-        return False
-    region = image[517:555, x - 19:x + 19]
-    if np.count_nonzero(np.ptp(region, axis=2) > 45) < 100:
-        if not click(context, (x, 539)):
+    }
+    for attempt in range(4):
+        image = capture(context)
+        if not recognize(context, list_node, image) or not recognize(context, "SongPickerDifficulty", image, override):
+            return False
+        region = image[517:555, x - 19:x + 19]
+        if np.count_nonzero(np.ptp(region, axis=2) > 45) >= 100:
+            return True
+        if attempt == 3 or not click(context, (x, 539)):
             return False
         time.sleep(0.5)
-        image = capture(context)
-        region = image[517:555, x - 19:x + 19]
-    return np.count_nonzero(np.ptp(region, axis=2) > 45) >= 100
+    return False
 
 
 def _find_visible(context, image, title):
@@ -71,11 +69,18 @@ def _search_list(context, title, list_node):
                 return True
             found = _find_visible(context, image, title)
             if found:
-                if not click(context, found):
-                    return False
-                time.sleep(0.55)
-                confirmed = capture(context)
-                return title_key(_label(context, "PlaySelectSongTitle", confirmed)) == expected
+                for attempt in range(3):
+                    if not found or not click(context, found):
+                        return False
+                    time.sleep(0.55)
+                    image = capture(context)
+                    if not recognize(context, list_node, image):
+                        return False
+                    if title_key(_label(context, "PlaySelectSongTitle", image)) == expected:
+                        return True
+                    if attempt < 2:
+                        found = _find_visible(context, image, title)
+                return False
             if recognize(context, "SongPickerNoEntries", image):
                 return False
             content = image[140:577, 216:550]

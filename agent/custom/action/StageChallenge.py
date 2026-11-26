@@ -27,9 +27,11 @@ def enter_stage(context, special):
             *choice, "SoloEnterStage", "SoloModeMenu", "SoloOpenLive",
         ]},
         "SoloModeMenu": {"next": ["GameErrorDialog", "SoloEnterStage"]},
-        "SoloEnterStage": {"next": ["GameErrorDialog", *choice]},
-        "SoloConfirmStage": {"next": ["GameErrorDialog", "SoloStageReady", "[JumpBack]StageRetryLevelConfirm"]},
-    }, reset_hits=(switch, "StageRetryLevelConfirm")):
+        "SoloEnterStage": {"next": ["GameErrorDialog", *choice, "SoloEnterStage"]},
+    }, reset_hits=(
+        "SoloOpenLive", "SoloEnterStage", catalog, switch, "SoloConfirmStage",
+        "StageCancelAreaItems", "StageCloseRosterMismatch", "StageRecommendationDone",
+    )):
         raise RuntimeError("未进入舞台挑战编队页，请确认舞台已解锁")
 
 
@@ -63,7 +65,9 @@ class StageChallenge(CustomAction):
         try:
             options = (context.get_node_data(argv.node_name) or {}).get("attach") or {}
             enter_stage(context, options.get("special") is True)
-            if options.get("recommend") is True and not reached(context, "StageRecommendRoster", "SoloStageReady"):
+            if options.get("recommend") is True and not reached(
+                context, "StageRecommendRoster", "SoloStageReady", reset_hits=("StageRecommendationDone",),
+            ):
                 raise RuntimeError("游戏未能推荐符合要求的编组")
             play_stage(context, options.get("change_area_items") is True)
             if not reached(context, "StageSettle", "DailyLiveStats"):

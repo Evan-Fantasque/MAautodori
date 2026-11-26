@@ -20,6 +20,10 @@ MAautodori 是一个面向《BanG Dream! 少女乐团派对！》简中服的 Mu
 
 如果系统缺少运行库，请分别安装 [Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/#download-section) 和 [Visual C++ x64 运行库](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)。
 
+### 日志与故障反馈
+
+便携包默认保留 `debug/` 下的任务日志、警告和失败截图。排查触控问题时，可以关闭 MXU，再从包目录的 PowerShell 运行 `$env:MAAUTODORI_DEBUG_LOGS = '1'` 和 `.\mxu.exe`，为本次启动启用 Agent 详细日志与逐笔触控记录。
+
 ## 从 MuMu 启动到单人演出准备
 
 1. 在 MXU 的空配置中使用「启动模拟器到一键每日」预设。它会依次添加「启动游戏到主菜单」和「每日清火＋免费三抽」。

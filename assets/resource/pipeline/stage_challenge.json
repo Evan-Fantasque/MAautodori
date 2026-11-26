@@ -7,16 +7,17 @@
         "next": ["StageCancelAreaItems", "StageCloseRosterMismatch", "StageRecommendationDone", "SoloStageReady", "SoloConfirmStage", "SoloMainStageCatalog", "[JumpBack]SoloSwitchMainStage", "SoloEnterStage", "SoloModeMenu", "SoloOpenLive"],
         "timeout": 15000
     },
-    "StageRetryLevelConfirm": {
-        "recognition": "And", "all_of": ["SoloConfirmStage"],
-        "action": "Click", "post_delay": 700, "max_hit": 1
-    },
-    "StageRecommendationDone": {
+    "StageRecommendationPopup": {
         "recognition": "And", "all_of": [
             {"recognition": "OCR", "roi": [383, 150, 194, 42], "expected": "^推荐编成$"},
             {"recognition": "OCR", "roi": [514, 493, 252, 65], "expected": "^关闭$"}
         ],
-        "box_index": 1, "action": "Click", "post_delay": 600, "next": ["SoloStageReady"], "timeout": 5000
+        "box_index": 1
+    },
+    "StageRecommendationDone": {
+        "recognition": "And", "all_of": ["StageRecommendationPopup"],
+        "action": "Click", "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "StageRecommendationDone", "StageRecommendationPopup", "SoloStageReady"], "timeout": 5000
     },
     "StageRecommendRoster": {"next": ["StageRecommendButton"], "timeout": 5000},
     "StageRecommendButton": {
@@ -44,7 +45,8 @@
     },
     "StageCloseRosterMismatch": {
         "recognition": "And", "all_of": ["StageRosterMismatch"],
-        "action": "Click", "post_delay": 700, "next": ["SoloStageReady"], "timeout": 6000
+        "action": "Click", "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "StageCloseRosterMismatch", "StageRosterMismatch", "SoloStageReady"], "timeout": 6000
     },
     "StageAreaItemsApply": {"recognition": "OCR", "roi": [651, 492, 236, 64], "expected": "^确认更换$"},
     "StageAreaItemsCancel": {"recognition": "OCR", "roi": [391, 492, 236, 64], "expected": "^取消$"},
@@ -60,7 +62,8 @@
     },
     "StageCancelAreaItems": {
         "recognition": "And", "all_of": ["StageAreaItemsPrompt", "StageAreaItemsCancel"],
-        "box_index": 1, "action": "Click", "post_delay": 700, "next": ["SoloStageReady"], "timeout": 5000
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "StageCancelAreaItems", "StageAreaItemsPrompt", "SoloStageReady"], "timeout": 5000
     },
     "StageRewardOK": {
         "recognition": "And", "all_of": [
@@ -84,7 +87,7 @@
             "[JumpBack]DailyLiveLargeRewardOK", "[JumpBack]DailyLiveRewardOK", "[JumpBack]DailyLiveRewardList",
             "[JumpBack]DailyLiveRewardNext", "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
-            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip", "[JumpBack]StoryConfirmSkip"
+            "[JumpBack]StoryConfirmSkip", "[JumpBack]StorySelectSkip", "[JumpBack]StoryOpenMenu"
         ],
         "timeout": 60000
     },

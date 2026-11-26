@@ -1,6 +1,8 @@
 import io
+import logging
 import os
 import sys
+from pathlib import Path
 
 # 强制 stdout/stderr 使用 UTF-8 编码，避免非 UTF-8 系统环境下中文输出报错
 if sys.stdout.encoding != "utf-8":
@@ -18,9 +20,21 @@ from agent.deploy.deploy import deploy, get_main_py_path
 def main():
 
     from maa.agent.agent_server import AgentServer
-    from maa.toolkit import Toolkit
+    from maa.define import LoggingLevelEnum
+    from maa.tasker import Tasker
 
-    Toolkit.init_option("./")
+    portable_python = get_main_py_path().parents[1] / "python"
+    quiet_logs = (
+        Path(sys.executable).resolve().parent == portable_python
+        and os.environ.get("MAAUTODORI_DEBUG_LOGS") != "1"
+    )
+    if quiet_logs:
+        # Keep the main process's diagnostics, including failure screenshots.
+        Tasker.set_log_dir("")
+        Tasker.set_stdout_level(LoggingLevelEnum.Warn)
+        logging.getLogger("minitouch.py").setLevel(logging.WARNING)
+    else:
+        Tasker.set_log_dir(Path("debug"))
 
     socket_id = sys.argv[-1]
     print(f"socket_id: {socket_id}")

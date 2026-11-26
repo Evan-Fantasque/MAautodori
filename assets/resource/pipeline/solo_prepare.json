@@ -15,9 +15,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloModeMenu"
+            "GameErrorDialog", "SoloModeMenu", "SoloOpenLive"
         ],
         "target": [
             1120,
@@ -41,19 +42,18 @@
         ]
     },
     "SoloEnterFree": {
-        "recognition": "OCR",
-        "roi": [
-            711,
-            465,
-            185,
-            59
+        "recognition": "And",
+        "all_of": [
+            "SoloModeMenu",
+            {"recognition": "OCR", "roi": [711, 465, 185, 59], "expected": "^自由演出$"}
         ],
-        "expected": "^自由演出$",
+        "box_index": 1,
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloConfirmFreeSong"
+            "GameErrorDialog", "SoloConfirmFreeSong", "SoloEnterFree"
         ]
     },
     "SoloConfirmFreeSong": {
@@ -92,9 +92,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloFreeReady"
+            "GameErrorDialog", "SoloFreeReady", "SoloConfirmFreeSong"
         ],
         "box_index": 2
     },
@@ -134,19 +135,18 @@
         ]
     },
     "SoloEnterChallenge": {
-        "recognition": "OCR",
-        "roi": [
-            716,
-            295,
-            177,
-            45
+        "recognition": "And",
+        "all_of": [
+            "SoloModeMenu",
+            {"recognition": "OCR", "roi": [716, 295, 177, 45], "expected": "^挑战演出$"}
         ],
-        "expected": "^挑战演出$",
+        "box_index": 1,
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloConfirmChallengeSong"
+            "GameErrorDialog", "SoloConfirmChallengeSong", "SoloEnterChallenge"
         ]
     },
     "SoloConfirmChallengeSong": {
@@ -185,9 +185,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloChallengeReady"
+            "GameErrorDialog", "SoloChallengeReady", "SoloConfirmChallengeSong"
         ],
         "box_index": 2
     },
@@ -207,6 +208,7 @@
     "SoloEnterStage": {
         "recognition": "And",
         "all_of": [
+            "SoloModeMenu",
             {
                 "recognition": "OCR",
                 "roi": [
@@ -230,10 +232,11 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 90000,
         "next": [
             "GameErrorDialog", "SoloMainStageCatalog",
-            "[JumpBack]SoloSwitchMainStage"
+            "[JumpBack]SoloSwitchMainStage", "SoloEnterStage"
         ],
         "target": [
             885,
@@ -290,9 +293,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloConfirmStage"
+            "GameErrorDialog", "SoloConfirmStage", "SoloMainStageCatalog"
         ],
         "box_index": 2
     },
@@ -314,9 +318,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloConfirmStage"
+            "GameErrorDialog", "SoloConfirmStage", "SoloSpecialStageCatalog"
         ],
         "box_index": 2
     },
@@ -336,7 +341,7 @@
             65,
             55
         ],
-        "max_hit": 1
+        "max_hit": 3
     },
     "SoloSwitchSpecialStage": {
         "recognition": "And",
@@ -354,7 +359,7 @@
             65,
             55
         ],
-        "max_hit": 1
+        "max_hit": 3
     },
     "SoloConfirmStage": {
         "recognition": "And",
@@ -392,9 +397,10 @@
         ],
         "action": "Click",
         "post_delay": 700,
+        "max_hit": 3,
         "timeout": 30000,
         "next": [
-            "GameErrorDialog", "SoloStageReady"
+            "GameErrorDialog", "SoloStageReady", "SoloConfirmStage"
         ],
         "box_index": 2
     },

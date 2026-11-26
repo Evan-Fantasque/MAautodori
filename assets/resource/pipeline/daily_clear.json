@@ -24,7 +24,8 @@
     },
     "DailyBandBack": {
         "recognition": "And", "all_of": ["SoloFreeReady"],
-        "action": "Click", "target": [32, 32, 42, 40], "next": ["GameErrorDialog", "FreeSongList"], "timeout": 10000
+        "action": "Click", "target": [32, 32, 42, 40], "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "FreeSongList", "DailyBandBack"], "timeout": 10000
     },
     "DailyConfirmSong": {"next": ["SoloConfirmFreeSong"], "timeout": 8000},
     "DailyBackToHome": {
@@ -40,7 +41,7 @@
     },
     "DailyRecruitListBack": {
         "recognition": "And", "all_of": ["DailyRecruitList"],
-        "action": "Click", "target": [32, 32, 42, 40], "post_delay": 700, "max_hit": 1
+        "action": "Click", "target": [32, 32, 42, 40], "post_delay": 700, "max_hit": 3
     },
     "DailyBoostBalance": {
         "recognition": "OCR", "roi": [979, 30, 61, 20], "only_rec": true,
@@ -50,7 +51,8 @@
     "DailyOpenBoost": {
         "recognition": "And",
         "all_of": ["SingleFreeBand", {"recognition": "OCR", "roi": [844, 636, 57, 37], "expected": "^设[定置]$"}],
-        "box_index": 1, "action": "Click", "next": ["DailyBoostDialog"], "timeout": 6000
+        "box_index": 1, "action": "Click", "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "DailyBoostDialog", "DailyOpenBoost"], "timeout": 6000
     },
     "DailyBoostDialog": {
         "recognition": "OCR", "roi": [270, 28, 348, 51], "expected": "^LIVE\\s*BOOST\\s*消[费耗]设定$"
@@ -73,7 +75,8 @@
     "DailyBoostConfirm": {
         "recognition": "And",
         "all_of": ["DailyBoostDialog", "DailyBoostSelected", {"recognition": "OCR", "roi": [531, 611, 215, 55], "expected": "^OK$"}],
-        "box_index": 2, "action": "Click", "next": ["SoloFreeReady"], "timeout": 6000
+        "box_index": 2, "action": "Click", "post_delay": 700, "max_hit": 3,
+        "next": ["GameErrorDialog", "DailyBoostConfirm", "DailyBoostDialog", "SoloFreeReady"], "timeout": 6000
     },
     "DailyBoostBefore": {"recognition": "OCR", "roi": [1046, 542, 35, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
     "DailyBoostAfter": {"recognition": "OCR", "roi": [1099, 542, 51, 29], "only_rec": true, "expected": "^\\d{1,2}$"},
@@ -93,8 +96,8 @@
             "[JumpBack]DailyLiveRewardList", "[JumpBack]DailyLiveRewardNext",
             "[JumpBack]DailyLiveRankUp",
             "[JumpBack]DailyLiveStatsNext", "[JumpBack]DailyLiveExpNext", "[JumpBack]DailyLivePointsOK",
-            "[JumpBack]StoryOpenMenu", "[JumpBack]StorySelectSkip",
-            "[JumpBack]StoryConfirmSkip", "[JumpBack]DailyLiveHome"
+            "[JumpBack]StoryConfirmSkip", "[JumpBack]StorySelectSkip",
+            "[JumpBack]StoryOpenMenu", "[JumpBack]DailyLiveHome"
         ],
         "timeout": 45000
     },

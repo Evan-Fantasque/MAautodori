@@ -26,9 +26,9 @@
             "[JumpBack]DailyLiveStatsNext",
             "[JumpBack]DailyLiveExpNext",
             "[JumpBack]DailyLivePointsOK",
-            "[JumpBack]StoryOpenMenu",
-            "[JumpBack]StorySelectSkip",
             "[JumpBack]StoryConfirmSkip",
+            "[JumpBack]StorySelectSkip",
+            "[JumpBack]StoryOpenMenu",
             "StartupHomeReady",
             "[JumpBack]StartupTapTitle",
             "[JumpBack]DailyLiveHome",
@@ -128,7 +128,7 @@
         "action": "Click",
         "target": [320, 580, 68, 62],
         "post_delay": 900,
-        "max_hit": 1
+        "max_hit": 3
     },
     "StartupRewardNext": {
         "recognition": "And",
@@ -190,21 +190,21 @@
     "StoryOpenMenu": {
         "recognition": "TemplateMatch", "template": "common/reader/menu.png",
         "roi": [1090, 12, 183, 99], "threshold": 0.86,
-        "action": "Click", "target": [1161, 42, 38, 38], "post_delay": 450, "max_hit": 1
+        "action": "Click", "target": [1161, 42, 38, 38], "post_delay": 550, "max_hit": 3
     },
     "StorySelectSkip": {
         "recognition": "And", "all_of": [
             {"recognition": "OCR", "roi": [526, 54, 102, 37], "expected": "^跳过$"},
             {"recognition": "OCR", "roi": [1013, 56, 113, 36], "expected": "^记录$"}
         ],
-        "action": "Click", "post_delay": 450, "max_hit": 1
+        "action": "Click", "target": [566, 47, 24, 24], "post_delay": 750, "max_hit": 3
     },
     "StoryConfirmSkip": {
         "recognition": "And", "all_of": [
             {"recognition": "OCR", "roi": [411, 280, 475, 107], "expected": "^确定跳过这个故事吗[？?]?$"},
             {"recognition": "OCR", "roi": [658, 422, 215, 59], "expected": "^(跳过|确定)$"}
         ],
-        "box_index": 1, "action": "Click", "post_delay": 800, "max_hit": 1
+        "box_index": 1, "action": "Click", "post_delay": 800, "max_hit": 3
     },
     "StartupHomeReady": {
         "recognition": "And",
